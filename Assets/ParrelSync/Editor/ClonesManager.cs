@@ -76,7 +76,6 @@ namespace ParrelSync
             string cloneProjectPath = null;
 
             //Find available clone suffix id
-            int availableCloneSuffixId = 0;
             for (int i = 0; i < MaxCloneProjectCount; i++)
             {
                 string originalProjectPath = ClonesManager.GetCurrentProject().projectPath;
@@ -85,7 +84,6 @@ namespace ParrelSync
                 if (!Directory.Exists(possibleCloneProjectPath))
                 {
                     cloneProjectPath = possibleCloneProjectPath;
-                    availableCloneSuffixId = i;
                     break;
                 }
             }
@@ -106,7 +104,7 @@ namespace ParrelSync
             Debug.Log("Library copy: " + cloneProject.libraryPath);
             ClonesManager.CopyDirectoryWithProgressBar(sourceProject.libraryPath, cloneProject.libraryPath,
                 "Cloning Project Library '" + sourceProject.name + "'. ");
-            Debug.Log("Packages copy: " + cloneProject.packagesPath);
+            Debug.Log("Packages copy: " + cloneProject.libraryPath);
             ClonesManager.CopyDirectoryWithProgressBar(sourceProject.packagesPath, cloneProject.packagesPath,
               "Cloning Project Packages '" + sourceProject.name + "'. ");
 
@@ -135,7 +133,7 @@ namespace ParrelSync
                 LinkFolders(sourceOptionalPath, cloneOptionalPath);
             }
 
-            ClonesManager.RegisterClone(cloneProject, availableCloneSuffixId);
+            ClonesManager.RegisterClone(cloneProject);
 
             return cloneProject;
         }
@@ -144,7 +142,7 @@ namespace ParrelSync
         /// Registers a clone by placing an identifying ".clone" file in its root directory.
         /// </summary>
         /// <param name="cloneProject"></param>
-        private static void RegisterClone(Project cloneProject, int availableCloneSuffixId)
+        private static void RegisterClone(Project cloneProject)
         {
             /// Add clone identifier file.
             string identifierFile = Path.Combine(cloneProject.projectPath, ClonesManager.CloneFileName);
@@ -152,7 +150,7 @@ namespace ParrelSync
 
             //Add argument file with default argument
             string argumentFilePath = Path.Combine(cloneProject.projectPath, ClonesManager.ArgumentFileName);
-            File.WriteAllText(argumentFilePath, DefaultArgument + "_" + availableCloneSuffixId, System.Text.Encoding.UTF8);
+            File.WriteAllText(argumentFilePath, DefaultArgument, System.Text.Encoding.UTF8);
 
             /// Add collabignore.txt to stop the clone from messing with Unity Collaborate if it's enabled. Just in case.
             string collabignoreFile = Path.Combine(cloneProject.projectPath, "collabignore.txt");
@@ -288,20 +286,6 @@ namespace ParrelSync
                     Debug.LogWarning("Not in a known editor. Where are you!?");
                     break;
             }
-        }
-
-        public static void SyncPackages(string cloneProjectPath)
-        {
-            if (string.IsNullOrEmpty(cloneProjectPath)) return;
-            
-            string sourceProjectPath = GetOriginalProjectPath();
-            if (cloneProjectPath == sourceProjectPath) return;
-
-            Project sourceProject = new Project(sourceProjectPath);
-            Project cloneProject = new Project(cloneProjectPath);
-
-            FileUtil.ReplaceDirectory(sourceProject.packagesPath, cloneProject.packagesPath);
-            Debug.Log("Package Folder Synced (" + sourceProject.packagesPath + " => " + cloneProject.packagesPath + ")");
         }
 
         #endregion
