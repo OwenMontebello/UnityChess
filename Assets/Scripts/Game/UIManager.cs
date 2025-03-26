@@ -7,6 +7,12 @@ using Unity.Netcode;
 
 public class UIManager : MonoBehaviourSingleton<UIManager>
 {
+    // Delegates and events for turn-based logic
+    public delegate void SideAssignedHandler(Side side);
+    public delegate void TurnChangedHandler(Side currentTurn);
+    public event SideAssignedHandler OnLocalPlayerSideAssigned;
+    public event TurnChangedHandler OnTurnChanged;
+
     [SerializeField] private GameObject promotionUI = null;
     [SerializeField] private Text resultText = null;
     [SerializeField] private InputField GameStringInputField = null;
@@ -20,9 +26,15 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     [SerializeField] private Color textColor = new Color(1f, 0.71f, 0.18f);
     [SerializeField, Range(-0.25f, 0.25f)] private float buttonColorDarkenAmount = 0f;
     [SerializeField, Range(-0.25f, 0.25f)] private float moveHistoryAlternateColorDarkenAmount = 0f;
+    
+    // New fields for turn-based logic
+    [SerializeField] private Text currentTurnText = null;
+    [SerializeField] private Text gameStateText = null;
+    [SerializeField] private Text localPlayerInfoText = null;
 
     private Timeline<FullMoveUI> moveUITimeline;
     private Color buttonColor;
+    private Side localPlayerSide;
 
     private void Start()
     {
@@ -43,6 +55,13 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
             backgroundColor.g - buttonColorDarkenAmount,
             backgroundColor.b - buttonColorDarkenAmount
         );
+        
+        // Initialize game state text if available
+        if (gameStateText != null)
+        {
+            gameStateText.text = "Not Connected";
+            gameStateText.gameObject.SetActive(true);
+        }
     }
 
     private void OnNewGameStarted()
@@ -57,6 +76,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
 
         moveUITimeline.Clear();
         resultText.gameObject.SetActive(false);
+        
+        // Update turn text if in network mode
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            UpdateTurnIndicator(Side.White); // Default to white starts
+        }
     }
 
     private void OnGameEnded()
@@ -73,6 +98,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         }
 
         resultText.gameObject.SetActive(true);
+        
+        // Update game state text if available
+        if (gameStateText != null)
+        {
+            gameStateText.text = "Game Over";
+        }
     }
 
     private void OnMoveExecuted()
@@ -85,6 +116,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
 
         GameManager.Instance.HalfMoveTimeline.TryGetCurrent(out HalfMove lastMove);
         AddMoveToHistory(lastMove, sideToMove.Complement());
+        
+        // Update turn text if available
+        if (currentTurnText != null)
+        {
+            currentTurnText.text = $"Current Turn: {sideToMove}";
+        }
     }
 
     private void OnGameResetToHalfMove()
@@ -217,6 +254,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         Side sideToMove = GameManager.Instance.SideToMove;
         whiteTurnIndicator.enabled = (sideToMove == Side.White);
         blackTurnIndicator.enabled = (sideToMove == Side.Black);
+        
+        // Update turn text if available
+        if (currentTurnText != null)
+        {
+            currentTurnText.text = $"Current Turn: {sideToMove}";
+        }
     }
 
     private void UpdateGameStringInputField()
@@ -247,6 +290,9 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     private void HandleClientConnected(ulong clientId)
     {
         Debug.Log($"Client connected: {clientId}");
+        
+        // Update connection status in UI
+        UpdateNetworkConnectionStatus(true, NetworkManager.Singleton.IsHost);
     }
 
     private void HandleClientDisconnected(ulong clientId)
@@ -255,6 +301,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         if (clientId == NetworkManager.Singleton.LocalClientId)
         {
             Debug.Log("Local client disconnected from the session.");
+            UpdateNetworkConnectionStatus(false, false);
         }
     }
 
@@ -264,6 +311,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             Debug.Log("Starting host...");
             NetworkManager.Singleton.StartHost();
+            UpdateNetworkConnectionStatus(true, true);
         }
         else
         {
@@ -277,6 +325,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             Debug.Log("Joining session as client...");
             NetworkManager.Singleton.StartClient();
+            UpdateNetworkConnectionStatus(true, false);
         }
         else
         {
@@ -290,6 +339,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             Debug.Log("Leaving session...");
             NetworkManager.Singleton.Shutdown();
+            UpdateNetworkConnectionStatus(false, false);
         }
         else
         {
@@ -310,5 +360,94 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         }
     }
 
+    #endregion
+    
+    #region Turn-Based Logic Methods
+    
+    /// <summary>
+    /// Updates the turn indicator based on whose turn it is
+    /// </summary>
+    public void UpdateTurnIndicator(Side currentTurn)
+    {
+        whiteTurnIndicator.enabled = (currentTurn == Side.White);
+        blackTurnIndicator.enabled = (currentTurn == Side.Black);
+        
+        // Update turn text if available
+        if (currentTurnText != null)
+        {
+            currentTurnText.text = $"Current Turn: {currentTurn}";
+        }
+        
+        // When it's your turn, show a highlight or notification
+        bool isYourTurn = (localPlayerSide == currentTurn);
+        if (isYourTurn)
+        {
+            // Optional: Play a sound or animation to notify player
+            Debug.Log("It's your turn!");
+        }
+        
+        // Trigger the event for NetworkPieceController
+        OnTurnChanged?.Invoke(currentTurn);
+    }
+
+    /// <summary>
+    /// Sets the local player's side (white/black)
+    /// </summary>
+    public void SetLocalPlayerSide(Side side)
+    {
+        localPlayerSide = side;
+        Debug.Log($"Local player is playing as {side}");
+        
+        // Update UI to reflect which side the player is controlling
+        if (localPlayerInfoText != null)
+        {
+            localPlayerInfoText.text = $"You are playing as {side}";
+            localPlayerInfoText.gameObject.SetActive(true);
+        }
+        
+        // Trigger the event for NetworkPieceController
+        OnLocalPlayerSideAssigned?.Invoke(side);
+    }
+
+    /// <summary>
+    /// Displays a game over message
+    /// </summary>
+    public void DisplayGameOverMessage(string message)
+    {
+        if (resultText != null)
+        {
+            resultText.text = message;
+            resultText.gameObject.SetActive(true);
+        }
+        
+        if (gameStateText != null)
+        {
+            gameStateText.text = "Game Over";
+            gameStateText.gameObject.SetActive(true);
+        }
+        
+        Debug.Log($"Game Over: {message}");
+    }
+
+    /// <summary>
+    /// Updates UI to show network connection status
+    /// </summary>
+    public void UpdateNetworkConnectionStatus(bool isConnected, bool isHost)
+    {
+        // Update UI to show network status
+        if (gameStateText != null)
+        {
+            if (isConnected)
+            {
+                gameStateText.text = isHost ? "Hosting Game" : "Connected as Client";
+            }
+            else
+            {
+                gameStateText.text = "Not Connected";
+            }
+            gameStateText.gameObject.SetActive(true);
+        }
+    }
+    
     #endregion
 }

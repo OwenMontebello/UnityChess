@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityChess;
 using UnityEngine;
 using static UnityChess.SquareUtil;
+using Unity.Netcode;
 
 public class BoardManager : MonoBehaviourSingleton<BoardManager>
 {
@@ -46,6 +47,47 @@ public class BoardManager : MonoBehaviourSingleton<BoardManager>
             }
         }
     }
+
+    // Add this near the top of the class
+// Add near the top of the BoardManager class with other fields
+private Side localPlayerSide = Side.None;
+
+// Add this new method
+public void SetLocalPlayerSide(Side side)
+{
+    localPlayerSide = side;
+    Debug.Log($"BoardManager: Local player is now playing as {side}");
+}
+
+// Find the existing method and replace its implementation with this:
+public void EnsureOnlyPiecesOfSideAreEnabled(Side side)
+// Don't create a new method! Find the existing method and replace its contents with this:
+{
+    VisualPiece[] visualPieces = GetComponentsInChildren<VisualPiece>(true);
+    
+    // In network games, we should only enable pieces for the side controlled by this client
+    bool isNetworkGame = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+    
+    foreach (VisualPiece vp in visualPieces)
+    {
+        Piece piece = GameManager.Instance.CurrentBoard[vp.CurrentSquare];
+        
+        if (isNetworkGame)
+        {
+            // In network game, check if this piece belongs to the local player's side
+            bool isLocalPlayerPiece = (vp.PieceColor == localPlayerSide);
+            bool isCurrentTurn = (side == localPlayerSide);
+            
+            // Only enable pieces if it's local player's turn AND the piece belongs to them
+            vp.enabled = isLocalPlayerPiece && isCurrentTurn && GameManager.Instance.HasLegalMoves(piece);
+        }
+        else
+        {
+            // Original behavior for single-player
+            vp.enabled = (vp.PieceColor == side && GameManager.Instance.HasLegalMoves(piece));
+        }
+    }
+}
 
     private void OnNewGameStarted()
     {
@@ -138,15 +180,7 @@ public void MovePiece(Square fromSquare, Square toSquare)
         }
     }
 
-    public void EnsureOnlyPiecesOfSideAreEnabled(Side side)
-    {
-        VisualPiece[] visualPieces = GetComponentsInChildren<VisualPiece>(true);
-        foreach (VisualPiece vp in visualPieces)
-        {
-            Piece piece = GameManager.Instance.CurrentBoard[vp.CurrentSquare];
-            vp.enabled = (vp.PieceColor == side && GameManager.Instance.HasLegalMoves(piece));
-        }
-    }
+
 
     public void TryDestroyVisualPiece(Square position)
     {
