@@ -143,7 +143,6 @@ public void EnsureOnlyPiecesOfSideAreEnabled(Side side)
     // Moves a piece from one square to another.
 public void MovePiece(Square fromSquare, Square toSquare)
 {
-    Debug.Log($"[MovePiece] On client {Unity.Netcode.NetworkManager.Singleton?.LocalClientId}, from={fromSquare}, to={toSquare}");
     GameObject pieceGO = GetPieceGOAtPosition(fromSquare);
     if (pieceGO == null)
     {
@@ -158,8 +157,13 @@ public void MovePiece(Square fromSquare, Square toSquare)
         return;
     }
 
+    // First destroy any piece at the destination
+    TryDestroyVisualPiece(toSquare);
+    
+    // Then move the piece
     pieceGO.transform.SetParent(destinationSquare.transform);
     pieceGO.transform.localPosition = Vector3.zero;
+    
     Debug.Log($"[MovePiece] Moved piece from {fromSquare} to {toSquare}");
 }
 

@@ -368,27 +368,30 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     /// Updates the turn indicator based on whose turn it is
     /// </summary>
     public void UpdateTurnIndicator(Side currentTurn)
-    {
+{
+    // Add null checks for UI elements
+    if (whiteTurnIndicator != null)
         whiteTurnIndicator.enabled = (currentTurn == Side.White);
+    
+    if (blackTurnIndicator != null)
         blackTurnIndicator.enabled = (currentTurn == Side.Black);
-        
-        // Update turn text if available
-        if (currentTurnText != null)
-        {
-            currentTurnText.text = $"Current Turn: {currentTurn}";
-        }
-        
-        // When it's your turn, show a highlight or notification
-        bool isYourTurn = (localPlayerSide == currentTurn);
-        if (isYourTurn)
-        {
-            // Optional: Play a sound or animation to notify player
-            Debug.Log("It's your turn!");
-        }
-        
-        // Trigger the event for NetworkPieceController
-        OnTurnChanged?.Invoke(currentTurn);
+    
+    // Update turn text if available
+    if (currentTurnText != null)
+    {
+        currentTurnText.text = $"Current Turn: {currentTurn}";
     }
+    
+    // When it's your turn, show a highlight or notification
+    bool isYourTurn = (localPlayerSide == currentTurn);
+    if (isYourTurn)
+    {
+        Debug.Log("It's your turn!");
+    }
+    
+    // Trigger the event for NetworkPieceController
+    OnTurnChanged?.Invoke(currentTurn);
+}
 
     /// <summary>
     /// Sets the local player's side (white/black)

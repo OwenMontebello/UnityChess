@@ -119,67 +119,107 @@ public class BoardNetworkHandler : NetworkBehaviour
     /// Runs on the server (host) when invoked by a client.
     /// </summary>
     [ServerRpc(RequireOwnership = false)]
-    public void RequestMoveServerRpc(int fromFile, int fromRank, int toFile, int toRank, ServerRpcParams rpcParams = default)
-    {
-        // Get the client ID of the player making the request
-        ulong clientId = rpcParams.Receive.SenderClientId;
-        
-        // Verify it's this player's turn
-        if (!playerSides.TryGetValue(clientId, out Side playerSide) || playerSide != (Side)currentTurn.Value)
-        {
-            Debug.LogWarning($"Client {clientId} attempted to move out of turn");
-            // Could send feedback to the client here
-            return;
-        }
+public void RequestMoveServerRpc(int fromFile, int fromRank, int toFile, int toRank, ServerRpcParams rpcParams = default)
+{
+    // Get the client ID of the player making the request
+    ulong clientId = rpcParams.Receive.SenderClientId;
     
-        // Convert coordinates into Square objects.
-        Square fromSquare = new Square(fromFile, fromRank);
-        Square toSquare = new Square(toFile, toRank);
+    // Verify it's this player's turn
+    if (!playerSides.TryGetValue(clientId, out Side playerSide) || playerSide != (Side)currentTurn.Value)
+    {
+        Debug.LogWarning($"Client {clientId} attempted to move out of turn");
+        return;
+    }
 
-        // Use the public wrapper from GameManager.
-        if (!GameManager.Instance.TryGetLegalMove(fromSquare, toSquare, out Movement move))
+    Square fromSquare = new Square(fromFile, fromRank);
+    Square toSquare = new Square(toFile, toRank);
+
+    // Use the public wrapper from GameManager to get the legal move
+    if (!GameManager.Instance.TryGetLegalMove(fromSquare, toSquare, out Movement move))
+    {
+        Debug.LogWarning("Invalid move requested: " + fromSquare + " to " + toSquare);
+        return;
+    }
+    
+    Debug.Log($"Server executing move from {fromSquare} to {toSquare}");
+    
+    // Execute the move on the server
+    if (GameManager.Instance.TryExecuteMove(move))
+    {
+        // First destroy any piece at destination
+        BoardManager.Instance.TryDestroyVisualPiece(toSquare);
+        
+        // Then move the piece visually
+        GameObject pieceGO = BoardManager.Instance.GetPieceGOAtPosition(fromSquare);
+        if (pieceGO != null)
         {
-            Debug.LogWarning("Invalid move requested: " + fromSquare + " to " + toSquare);
-            // Could send feedback to the client here
-            return;
+            GameObject destSquareGO = BoardManager.Instance.GetSquareGOByPosition(toSquare);
+            pieceGO.transform.SetParent(destSquareGO.transform);
+            pieceGO.transform.localPosition = Vector3.zero;
+            
+            Debug.Log($"Server moved piece from {fromSquare} to {toSquare}");
         }
         
-        // Execute the move on the server.
-        if (GameManager.Instance.TryExecuteMove(move))
+        // Broadcast the move to all clients
+        UpdateBoardClientRpc(fromFile, fromRank, toFile, toRank);
+        
+        // Check for game end conditions
+        GameManager.Instance.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove);
+        if (latestHalfMove.CausedCheckmate || latestHalfMove.CausedStalemate)
         {
-            // Update board visuals on the server.
-            boardManager.MovePiece(fromSquare, toSquare);
-            // Broadcast the move to all clients.
-            UpdateBoardClientRpc(fromFile, fromRank, toFile, toRank);
-            
-            // Check if the game is over after this move
-            GameManager.Instance.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove);
-            if (latestHalfMove.CausedCheckmate || latestHalfMove.CausedStalemate)
-            {
-                // Game ended, notify clients
-                GameEndedClientRpc(latestHalfMove.CausedCheckmate, playerSide == Side.White ? 1 : 0);
-            }
-            else
-            {
-                // Switch turns after a successful move
-                currentTurn.Value = currentTurn.Value == (int)Side.White ? (int)Side.Black : (int)Side.White;
-                // Notify clients about turn change
-                NotifyTurnChangeClientRpc(currentTurn.Value);
-            }
+            // Game ended, notify clients
+            GameEndedClientRpc(latestHalfMove.CausedCheckmate, playerSide == Side.White ? 1 : 0);
+        }
+        else
+        {
+            // Switch turns after a successful move
+            currentTurn.Value = currentTurn.Value == (int)Side.White ? (int)Side.Black : (int)Side.White;
+            // Notify clients about turn change
+            NotifyTurnChangeClientRpc(currentTurn.Value);
         }
     }
+}
 
     /// <summary>
     /// Called on all clients to update board visuals.
     /// </summary>
-    [ClientRpc]
-    private void UpdateBoardClientRpc(int fromFile, int fromRank, int toFile, int toRank)
+[ClientRpc]
+private void UpdateBoardClientRpc(int fromFile, int fromRank, int toFile, int toRank)
+{
+    Square fromSquare = new Square(fromFile, fromRank);
+    Square toSquare = new Square(toFile, toRank);
+    
+    Debug.Log($"[ClientRPC] Received move from {fromSquare} to {toSquare} on {(NetworkManager.Singleton.IsHost ? "HOST" : "CLIENT")}");
+    
+    // Skip move processing for the server that already executed it
+    if (NetworkManager.Singleton.IsServer)
     {
-        Debug.Log($"[ClientRPC] Received move from {fromFile},{fromRank} to {toFile},{toRank} on client {NetworkManager.Singleton.LocalClientId}");
-        Square fromSquare = new Square(fromFile, fromRank);
-        Square toSquare = new Square(toFile, toRank);
-        BoardManager.Instance.MovePiece(fromSquare, toSquare);
+        Debug.Log("Server already processed this move, skipping duplicate execution");
+        return;
     }
+    
+    // For clients: 
+    // 1. First make sure any piece at destination is destroyed
+    BoardManager.Instance.TryDestroyVisualPiece(toSquare);
+    
+    // 2. Then move the piece from source to destination
+    GameObject pieceGO = BoardManager.Instance.GetPieceGOAtPosition(fromSquare);
+    if (pieceGO != null)
+    {
+        // Get the destination square transform
+        GameObject destSquareGO = BoardManager.Instance.GetSquareGOByPosition(toSquare);
+        
+        // Move the piece
+        pieceGO.transform.SetParent(destSquareGO.transform);
+        pieceGO.transform.localPosition = Vector3.zero;
+        
+        Debug.Log($"Client moved piece from {fromSquare} to {toSquare}");
+    }
+    else
+    {
+        Debug.LogError($"No piece found at source position {fromSquare}");
+    }
+}
     
     [ClientRpc]
     private void NotifyTurnChangeClientRpc(int sideToMove)
