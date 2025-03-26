@@ -334,18 +334,23 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     }
 
     public void OnLeaveButtonClicked()
+{
+    if (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost)
     {
-        if (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost)
-        {
-            Debug.Log("Leaving session...");
-            NetworkManager.Singleton.Shutdown();
-            UpdateNetworkConnectionStatus(false, false);
-        }
-        else
-        {
-            Debug.LogWarning("Not currently connected to any session.");
-        }
+        Debug.Log("Leaving session...");
+        
+        // Reset the game before disconnecting
+        GameManager.Instance.StartNewGame();
+        
+        // Shutdown network connection
+        NetworkManager.Singleton.Shutdown();
+        UpdateNetworkConnectionStatus(false, false);
     }
+    else
+    {
+        Debug.LogWarning("Not currently connected to any session.");
+    }
+}
 
     public void OnRejoinButtonClicked()
     {
