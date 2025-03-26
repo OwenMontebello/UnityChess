@@ -13,6 +13,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     public event SideAssignedHandler OnLocalPlayerSideAssigned;
     public event TurnChangedHandler OnTurnChanged;
 
+    [Header("UI Elements")]
     [SerializeField] private GameObject promotionUI = null;
     [SerializeField] private Text resultText = null;
     [SerializeField] private InputField GameStringInputField = null;
@@ -27,10 +28,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     [SerializeField, Range(-0.25f, 0.25f)] private float buttonColorDarkenAmount = 0f;
     [SerializeField, Range(-0.25f, 0.25f)] private float moveHistoryAlternateColorDarkenAmount = 0f;
     
-    // New fields for turn-based logic
+    // New fields for turn-based logic and game-end conditions
     [SerializeField] private Text currentTurnText = null;
     [SerializeField] private Text gameStateText = null;
     [SerializeField] private Text localPlayerInfoText = null;
+    [SerializeField] private Button restartButton = null;
+    [SerializeField] private Button resignButton = null;
 
     private Timeline<FullMoveUI> moveUITimeline;
     private Color buttonColor;
@@ -61,6 +64,12 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             gameStateText.text = "Not Connected";
             gameStateText.gameObject.SetActive(true);
+        }
+        
+        // Hide restart button initially
+        if (restartButton != null)
+        {
+            restartButton.gameObject.SetActive(false);
         }
     }
 
@@ -104,6 +113,9 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             gameStateText.text = "Game Over";
         }
+        
+        // Show restart button
+        ShowRestartButton(true);
     }
 
     private void OnMoveExecuted()
@@ -334,23 +346,23 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     }
 
     public void OnLeaveButtonClicked()
-{
-    if (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost)
     {
-        Debug.Log("Leaving session...");
-        
-        // Reset the game before disconnecting
-        GameManager.Instance.StartNewGame();
-        
-        // Shutdown network connection
-        NetworkManager.Singleton.Shutdown();
-        UpdateNetworkConnectionStatus(false, false);
+        if (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost)
+        {
+            Debug.Log("Leaving session...");
+            
+            // Reset the game before disconnecting
+            GameManager.Instance.StartNewGame();
+            
+            // Shutdown network connection
+            NetworkManager.Singleton.Shutdown();
+            UpdateNetworkConnectionStatus(false, false);
+        }
+        else
+        {
+            Debug.LogWarning("Not currently connected to any session.");
+        }
     }
-    else
-    {
-        Debug.LogWarning("Not currently connected to any session.");
-    }
-}
 
     public void OnRejoinButtonClicked()
     {
@@ -373,30 +385,27 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     /// Updates the turn indicator based on whose turn it is
     /// </summary>
     public void UpdateTurnIndicator(Side currentTurn)
-{
-    // Add null checks for UI elements
-    if (whiteTurnIndicator != null)
+    {
         whiteTurnIndicator.enabled = (currentTurn == Side.White);
-    
-    if (blackTurnIndicator != null)
         blackTurnIndicator.enabled = (currentTurn == Side.Black);
-    
-    // Update turn text if available
-    if (currentTurnText != null)
-    {
-        currentTurnText.text = $"Current Turn: {currentTurn}";
+        
+        // Update turn text if available
+        if (currentTurnText != null)
+        {
+            currentTurnText.text = $"Current Turn: {currentTurn}";
+        }
+        
+        // When it's your turn, show a highlight or notification
+        bool isYourTurn = (localPlayerSide == currentTurn);
+        if (isYourTurn)
+        {
+            // Optional: Play a sound or animation to notify player
+            Debug.Log("It's your turn!");
+        }
+        
+        // Trigger the event for NetworkPieceController
+        OnTurnChanged?.Invoke(currentTurn);
     }
-    
-    // When it's your turn, show a highlight or notification
-    bool isYourTurn = (localPlayerSide == currentTurn);
-    if (isYourTurn)
-    {
-        Debug.Log("It's your turn!");
-    }
-    
-    // Trigger the event for NetworkPieceController
-    OnTurnChanged?.Invoke(currentTurn);
-}
 
     /// <summary>
     /// Sets the local player's side (white/black)
@@ -425,16 +434,16 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         if (resultText != null)
         {
             resultText.text = message;
-            resultText.gameObject.SetActive(true);
+            resultText.gameObject.SetActive(!string.IsNullOrEmpty(message));
         }
         
-        if (gameStateText != null)
+        if (gameStateText != null && !string.IsNullOrEmpty(message))
         {
             gameStateText.text = "Game Over";
             gameStateText.gameObject.SetActive(true);
         }
         
-        Debug.Log($"Game Over: {message}");
+        Debug.Log($"Game message: {message}");
     }
 
     /// <summary>
@@ -454,6 +463,62 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
                 gameStateText.text = "Not Connected";
             }
             gameStateText.gameObject.SetActive(true);
+        }
+    }
+    
+    #endregion
+    
+    #region Game End Conditions
+    
+    /// <summary>
+    /// Shows or hides the restart button
+    /// </summary>
+    public void ShowRestartButton(bool show)
+    {
+        if (restartButton != null)
+        {
+            restartButton.gameObject.SetActive(show);
+        }
+    }
+
+    /// <summary>
+    /// Called when the restart button is clicked
+    /// </summary>
+    public void OnRestartButtonClicked()
+    {
+        if (NetworkManager.Singleton.IsServer)
+        {
+            // Only the host can restart the game
+            BoardNetworkHandler.Instance.RestartGameServerRpc();
+        }
+        else
+        {
+            // Clients can request a restart from the host
+            Debug.Log("Requesting game restart from host");
+            BoardNetworkHandler.Instance.RequestRestartServerRpc();
+        }
+        
+        // Hide the restart button
+        ShowRestartButton(false);
+    }
+
+    /// <summary>
+    /// Called when the resign button is clicked
+    /// </summary>
+    public void OnResignButtonClicked()
+    {
+        if (NetworkManager.Singleton.IsConnectedClient)
+        {
+            Debug.Log("Player resigning from game");
+            
+            // Tell the server this player is resigning
+            BoardNetworkHandler.Instance.ResignGameServerRpc();
+            
+            // Hide resign button
+            if (resignButton != null)
+            {
+                resignButton.gameObject.SetActive(false);
+            }
         }
     }
     

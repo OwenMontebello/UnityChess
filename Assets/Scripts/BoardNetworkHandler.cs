@@ -303,5 +303,104 @@ public class BoardNetworkHandler : NetworkBehaviour
         {
             UIManager.Instance.DisplayGameOverMessage("Game ended in a draw (stalemate)");
         }
+        
+        // Disable all pieces to prevent further moves
+        BoardManager.Instance.SetActiveAllPieces(false);
+        
+        // Show restart button
+        UIManager.Instance.ShowRestartButton(true);
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ResignGameServerRpc(ServerRpcParams rpcParams = default)
+    {
+        // Get the client ID of the player resigning
+        ulong clientId = rpcParams.Receive.SenderClientId;
+        
+        if (!playerSides.TryGetValue(clientId, out Side resigningSide))
+        {
+            Debug.LogWarning($"Client {clientId} tried to resign but isn't assigned a side");
+            return;
+        }
+        
+        Debug.Log($"Player {clientId} ({resigningSide}) is resigning");
+        
+        // The winner is the opposite side of the resigning player
+        Side winningSide = resigningSide == Side.White ? Side.Black : Side.White;
+        
+        // Notify all clients of the resignation
+        GameResignedClientRpc((int)resigningSide, (int)winningSide);
+    }
+
+    [ClientRpc]
+    private void GameResignedClientRpc(int resigningSideValue, int winningSideValue)
+    {
+        Side resigningSide = (Side)resigningSideValue;
+        Side winningSide = (Side)winningSideValue;
+        
+        // Display resignation message
+        UIManager.Instance.DisplayGameOverMessage($"{resigningSide} resigned. {winningSide} wins!");
+        
+        // Disable all pieces to prevent further moves
+        BoardManager.Instance.SetActiveAllPieces(false);
+        
+        // Show restart button
+        UIManager.Instance.ShowRestartButton(true);
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestRestartServerRpc(ServerRpcParams rpcParams = default)
+    {
+        // This method allows clients to request a restart
+        // The server could implement logic here to confirm with all players
+        // For simplicity, we'll just automatically restart
+        RestartGameServerRpc();
+    }
+
+    [ServerRpc]
+    public void RestartGameServerRpc()
+    {
+        if (!IsServer) return;
+        
+        Debug.Log("Restarting game for all clients");
+        
+        // Reset the game state
+        GameManager.Instance.StartNewGame();
+        
+        // Reset the turn to White
+        currentTurn.Value = (int)Side.White;
+        
+        // Notify all clients to restart
+        RestartGameClientRpc();
+    }
+
+    [ClientRpc]
+    private void RestartGameClientRpc()
+    {
+        Debug.Log("Received game restart command");
+        
+        // Reset the game
+        GameManager.Instance.StartNewGame();
+        
+        // Update UI
+        UIManager.Instance.DisplayGameOverMessage(""); // Clear any game over message
+        UIManager.Instance.ShowRestartButton(false);
+        UIManager.Instance.UpdateTurnIndicator(Side.White);
+        
+        // Re-enable pieces for the side whose turn it is
+        if (NetworkManager.Singleton.IsHost)
+        {
+            // Host is White, so enable White pieces
+            BoardManager.Instance.EnsureOnlyPiecesOfSideAreEnabled(Side.White);
+        }
+        else
+        {
+            // Client is Black, so check if it's their turn
+            Side localPlayerSide = Side.Black; // Assuming client is always Black
+            if (localPlayerSide == (Side)currentTurn.Value)
+            {
+                BoardManager.Instance.EnsureOnlyPiecesOfSideAreEnabled(localPlayerSide);
+            }
+        }
     }
 }
