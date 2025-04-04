@@ -34,6 +34,7 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
     [SerializeField] private Text localPlayerInfoText = null;
     [SerializeField] private Button restartButton = null;
     [SerializeField] private Button resignButton = null;
+    [SerializeField] private Button openStoreButton;
 
     private Timeline<FullMoveUI> moveUITimeline;
     private Color buttonColor;
@@ -71,7 +72,16 @@ public class UIManager : MonoBehaviourSingleton<UIManager>
         {
             restartButton.gameObject.SetActive(false);
         }
+
+        if (openStoreButton != null)
+        openStoreButton.onClick.AddListener(OpenDLCStore);
     }
+
+    public void OpenDLCStore()
+{
+    // Open the DLC store
+    DLCStoreManager.Instance.OpenStore();
+}
 
     private void OnNewGameStarted()
     {

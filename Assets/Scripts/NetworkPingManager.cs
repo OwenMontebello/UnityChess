@@ -69,7 +69,6 @@ public class NetworkPingManager : NetworkBehaviour
         float pingTime = (Time.realtimeSinceStartup - lastPingTime) * 1000f; // Convert to ms
         currentPing = pingTime;
         
-        Debug.Log($"Received ping response. Current ping: {currentPing:F1}ms");
         
         // Update UI
         if (pingText != null)
