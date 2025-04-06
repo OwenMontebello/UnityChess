@@ -3,32 +3,21 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
 using UnityChess;
+
 public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
 {
-[System.Serializable]
-public class ChessSkin
-{
-    public string skinId;
-    public string skinName;
-    public string skinDescription;
-    public int price = 50;
-    public Sprite previewImage;
-    
-    // References to materials for each piece type
-    public Material whitePawnMaterial;
-    public Material whiteRookMaterial;
-    public Material whiteKnightMaterial;
-    public Material whiteBishopMaterial;
-    public Material whiteQueenMaterial;
-    public Material whiteKingMaterial;
-    
-    public Material blackPawnMaterial;
-    public Material blackRookMaterial;
-    public Material blackKnightMaterial;
-    public Material blackBishopMaterial;
-    public Material blackQueenMaterial;
-    public Material blackKingMaterial;
-}
+    [System.Serializable]
+    public class ChessSkin
+    {
+        public string skinId;
+        public string skinName;
+        public string skinDescription;
+        public int price = 50;
+        public Sprite previewImage;
+        
+        public string firstSkinId;  // White pieces skin type (Gold, Silver, etc.)
+        public string secondSkinId; // Black pieces skin type
+    }
 
     [Header("UI References")]
     [SerializeField] private GameObject storePanel;
@@ -38,13 +27,48 @@ public class ChessSkin
     [SerializeField] private Text playerCurrencyText;
 
     [Header("Store Configuration")]
-    [SerializeField] private List<ChessSkin> availableSkins = new List<ChessSkin>();
+    [SerializeField] private List<ChessSkin> availableSkins = new List<ChessSkin>
+    {
+        new ChessSkin 
+        {
+            skinId = "YellowXSilver", 
+            skinName = "Yellow X Silver", 
+            skinDescription = "Gold and Silver Pieces",
+            price = 50,
+            firstSkinId = "Gold",
+            secondSkinId = "Silver"
+        },
+        new ChessSkin 
+        {
+            skinId = "RedXBlue", 
+            skinName = "Red X Blue", 
+            skinDescription = "Red and Blue Pieces",
+            price = 50,
+            firstSkinId = "Red",
+            secondSkinId = "Blue"
+        },
+        new ChessSkin 
+        {
+            skinId = "BlackXWhite", 
+            skinName = "Black X White", 
+            skinDescription = "Default Pieces",
+            price = 0,
+            firstSkinId = "Default",
+            secondSkinId = "Default"
+        }
+    };
     
+    [Header("Dynamic Skin Loading")]
+    [SerializeField] private FirebaseMaterialDownloader materialDownloader;
+
     // Player currency (for demo purposes)
     private int playerCurrency = 1000;
     
     // List of skins the player owns
     private List<string> ownedSkinIds = new List<string>();
+    
+    // Currently equipped skin
+    private string currentEquippedSkinId = "BlackXWhite";
 
     private void Start()
     {
@@ -57,7 +81,17 @@ public class ChessSkin
             storePanel.SetActive(false);
             
         // Add default skin to owned skins
-        ownedSkinIds.Add("default");
+        ownedSkinIds.Add("BlackXWhite");
+        
+        // Find FirebaseMaterialDownloader if not assigned
+        if (materialDownloader == null)
+        {
+            materialDownloader = FindObjectOfType<FirebaseMaterialDownloader>();
+            if (materialDownloader == null)
+            {
+                Debug.LogError("FirebaseMaterialDownloader not found!");
+            }
+        }
         
         // Initialize the store items
         PopulateStoreItems();
@@ -77,22 +111,29 @@ public class ChessSkin
     private void PopulateStoreItems()
     {
         // Clear existing items
-        foreach (Transform child in skinItemsContainer)
+        if (skinItemsContainer != null)
         {
-            Destroy(child.gameObject);
-        }
-        
-        // Create a new item for each skin
-        foreach (ChessSkin skin in availableSkins)
-        {
-            GameObject skinItemGO = Instantiate(skinItemPrefab, skinItemsContainer);
-            SkinItemUI skinItem = skinItemGO.GetComponent<SkinItemUI>();
-            
-            if (skinItem != null)
+            foreach (Transform child in skinItemsContainer)
             {
-                bool isOwned = ownedSkinIds.Contains(skin.skinId);
-                skinItem.Initialize(skin, isOwned, PurchaseSkin);
+                Destroy(child.gameObject);
             }
+            
+            // Create a new item for each skin
+            foreach (ChessSkin skin in availableSkins)
+            {
+                GameObject skinItemGO = Instantiate(skinItemPrefab, skinItemsContainer);
+                SkinItemUI skinItem = skinItemGO.GetComponent<SkinItemUI>();
+                
+                if (skinItem != null)
+                {
+                    bool isOwned = ownedSkinIds.Contains(skin.skinId);
+                    skinItem.Initialize(skin, isOwned, PurchaseSkin);
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError("skinItemsContainer is not assigned!");
         }
     }
     
@@ -111,6 +152,17 @@ public class ChessSkin
                 
                 // Add to owned skins
                 ownedSkinIds.Add(skinId);
+                
+                // Download the skin
+                if (skinToPurchase.firstSkinId != "Default" && !string.IsNullOrEmpty(skinToPurchase.firstSkinId))
+                {
+                    materialDownloader.DownloadFullSkin(skinToPurchase.firstSkinId);
+                }
+                
+                if (skinToPurchase.secondSkinId != "Default" && !string.IsNullOrEmpty(skinToPurchase.secondSkinId))
+                {
+                    materialDownloader.DownloadFullSkin(skinToPurchase.secondSkinId);
+                }
                 
                 // Update UI
                 UpdateCurrencyDisplay();
@@ -141,126 +193,92 @@ public class ChessSkin
         UpdateCurrencyDisplay();
     }
 
-// Call this method from each equip button
-public void EquipSkin(int skinIndex)
-{
-    if (skinIndex < 0 || skinIndex >= availableSkins.Count) {
-        Debug.LogWarning($"Invalid skin index: {skinIndex}");
-        return;
-    }
-    
-    // Get the skin by index
-    ChessSkin skin = availableSkins[skinIndex];
-    
-    // Check if player owns this skin
-    if (!ownedSkinIds.Contains(skin.skinId)) {
-        // Player doesn't own this skin yet - need to purchase it
-        if (playerCurrency >= 50) {
-            // Deduct currency
-            playerCurrency -= 50;
-            
-            // Add skin to owned skins
-            ownedSkinIds.Add(skin.skinId);
-            
-            // Update currency display
-            UpdateCurrencyDisplay();
-            
-            // Now apply the skin
-            ApplySkinToPieces(skin.skinId);
-            
-            Debug.Log($"Purchased and equipped skin: {skin.skinName}");
-        } else {
-            Debug.Log("Not enough currency to purchase this skin!");
-            // Show message to player
+    // Call this method from each equip button
+    public void EquipSkin(int skinIndex)
+    {
+        Debug.Log($"Equipping skin at index {skinIndex}");
+        
+        if (skinIndex < 0 || skinIndex >= availableSkins.Count)
+        {
+            Debug.LogWarning($"Invalid skin index: {skinIndex}");
+            return;
         }
-    } else {
-        // Already owns the skin, just equip it
-        ApplySkinToPieces(skin.skinId);
-        Debug.Log($"Equipped skin: {skin.skinName}");
-    }
-}
 
-private void ApplySkinToPieces(string skinId)
-{
-    Debug.Log($"Attempting to apply skin: {skinId}");
-    
-    // Save currently equipped skin
-    PlayerPrefs.SetString("EquippedSkinId", skinId);
-    
-    // Find the selected skin
-    ChessSkin skin = availableSkins.Find(s => s.skinId == skinId);
-    if (skin == null)
-    {
-        Debug.LogError($"No skin found with ID: {skinId}");
-        return;
-    }
-    
-    // Find all pieces on the board
-    VisualPiece[] pieces = FindObjectsOfType<VisualPiece>();
-    
-    Debug.Log($"Found {pieces.Length} visual pieces to update");
-    
-    foreach (VisualPiece piece in pieces)
-    {
-        // Get the renderer component
-        Renderer renderer = piece.GetComponent<Renderer>();
-        if (renderer == null)
+        ChessSkin skin = availableSkins[skinIndex];
+        Debug.Log($"Selected skin: {skin.skinName}, firstSkinId: {skin.firstSkinId}, secondSkinId: {skin.secondSkinId}");
+        
+        // Check if skin is owned or purchasable
+        if (!ownedSkinIds.Contains(skin.skinId))
         {
-            Debug.LogWarning($"No renderer found for piece: {piece.name}");
-            continue;
+            if (playerCurrency >= skin.price)
+            {
+                Debug.Log($"Purchasing skin {skin.skinName} for {skin.price} credits");
+                playerCurrency -= skin.price;
+                ownedSkinIds.Add(skin.skinId);
+                
+                // Download the skin immediately after purchase
+                if (skin.firstSkinId != "Default" && !string.IsNullOrEmpty(skin.firstSkinId))
+                {
+                    materialDownloader.DownloadFullSkin(skin.firstSkinId);
+                }
+                
+                if (skin.secondSkinId != "Default" && !string.IsNullOrEmpty(skin.secondSkinId))
+                {
+                    materialDownloader.DownloadFullSkin(skin.secondSkinId);
+                }
+                
+                UpdateCurrencyDisplay();
+                PopulateStoreItems();
+            }
+            else
+            {
+                Debug.Log($"Not enough currency to purchase skin! Price: {skin.price}");
+                return;
+            }
         }
-        
-        // Determine which material to use based on piece type and color
-        Material newMaterial = null;
-        string pieceName = piece.name.ToLower();
-        
-        Debug.Log($"Processing piece: {pieceName}, Color: {piece.PieceColor}");
-        
-        if (piece.PieceColor == Side.White)
+
+        // Apply skin
+        if (skin.skinId == "BlackXWhite")
         {
-            if (pieceName.Contains("pawn"))
-                newMaterial = skin.whitePawnMaterial;
-            else if (pieceName.Contains("rook"))
-                newMaterial = skin.whiteRookMaterial;
-            else if (pieceName.Contains("knight"))
-                newMaterial = skin.whiteKnightMaterial;
-            else if (pieceName.Contains("bishop"))
-                newMaterial = skin.whiteBishopMaterial;
-            else if (pieceName.Contains("queen"))
-                newMaterial = skin.whiteQueenMaterial;
-            else if (pieceName.Contains("king"))
-                newMaterial = skin.whiteKingMaterial;
-        }
-        else // Black pieces
-        {
-            if (pieceName.Contains("pawn"))
-                newMaterial = skin.blackPawnMaterial;
-            else if (pieceName.Contains("rook"))
-                newMaterial = skin.blackRookMaterial;
-            else if (pieceName.Contains("knight"))
-                newMaterial = skin.blackKnightMaterial;
-            else if (pieceName.Contains("bishop"))
-                newMaterial = skin.blackBishopMaterial;
-            else if (pieceName.Contains("queen"))
-                newMaterial = skin.blackQueenMaterial;
-            else if (pieceName.Contains("king"))
-                newMaterial = skin.blackKingMaterial;
-        }
-        
-        // Apply the material if found
-        if (newMaterial != null)
-        {
-            Debug.Log($"Applying material to {pieceName}");
-            renderer.material = newMaterial;
+            // Apply default materials
+            ApplyDefaultMaterials();
         }
         else
         {
-            Debug.LogWarning($"No material found for piece: {pieceName}");
+            // Apply custom materials
+            if (skin.firstSkinId != "Default" && !string.IsNullOrEmpty(skin.firstSkinId))
+            {
+                materialDownloader.ApplySkinToPieces(skin.firstSkinId, Side.White);
+            }
+            
+            if (skin.secondSkinId != "Default" && !string.IsNullOrEmpty(skin.secondSkinId))
+            {
+                materialDownloader.ApplySkinToPieces(skin.secondSkinId, Side.Black);
+            }
         }
+        
+        // Save the equipped skin
+        currentEquippedSkinId = skin.skinId;
+        Debug.Log($"Equipped skin: {skin.skinName}");
     }
     
-    Debug.Log("Skin application completed");
-
-
-}
+    private void ApplyDefaultMaterials()
+    {
+        Debug.Log("Applying default black and white materials");
+        
+        VisualPiece[] pieces = FindObjectsOfType<VisualPiece>();
+        
+        foreach (VisualPiece piece in pieces)
+        {
+            Renderer renderer = piece.GetComponent<Renderer>();
+            if (renderer == null) continue;
+            
+            // Create a basic material
+            Material defaultMaterial = new Material(Shader.Find("Standard"));
+            defaultMaterial.color = piece.PieceColor == Side.White ? Color.white : Color.black;
+            
+            renderer.material = defaultMaterial;
+            Debug.Log($"Applied default material to {piece.name}");
+        }
+    }
 }

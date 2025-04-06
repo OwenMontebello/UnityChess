@@ -3329,6 +3329,50 @@ Light:
   m_UseViewFrustumForShadowCasterCull: 1
   m_ShadowRadius: 2
   m_ShadowAngle: 30
+--- !u!1 &1060503409
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1060503411}
+  - component: {fileID: 1060503410}
+  m_Layer: 0
+  m_Name: FirebaseMaterialDownloader
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1060503410
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1060503409}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b98c6afa4ae425642a4a7547737c79ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!4 &1060503411
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1060503409}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 435.76117, y: 195.22102, z: -2.478874}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 8
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1215812755
 GameObject:
   m_ObjectHideFlags: 0
@@ -6136,75 +6180,28 @@ MonoBehaviour:
   closeStoreButton: {fileID: 0}
   playerCurrencyText: {fileID: 0}
   availableSkins:
-  - skinId: 0
-    skinName: 0
-    skinDescription: 0
+  - skinId: YellowXSilver
+    skinName: Yellow X Silver
+    skinDescription: Gold and Silver Pieces
     price: 0
     previewImage: {fileID: 0}
-    whitePawnMaterial: {fileID: 2100000, guid: dd64bc66634b1034cb37a864b409c924, type: 2}
-    whiteRookMaterial: {fileID: 2100000, guid: ee1245cc9afb58c4886de85e1301bf1b, type: 2}
-    whiteKnightMaterial: {fileID: 2100000, guid: d4aa7a6dc8125f7469c020f90b6de63e,
-      type: 2}
-    whiteBishopMaterial: {fileID: 2100000, guid: 4732b2b9826b7d54a8f02741002e2b3a,
-      type: 2}
-    whiteQueenMaterial: {fileID: 2100000, guid: 8f6b44f161c87744aa4401ade12c7900,
-      type: 2}
-    whiteKingMaterial: {fileID: 2100000, guid: e41754a799fe85b4ab589a2f355a61a7, type: 2}
-    blackPawnMaterial: {fileID: 2100000, guid: 39d55f4cb98809c4d8b353afb8dc5b27, type: 2}
-    blackRookMaterial: {fileID: 2100000, guid: 4287899730fd3cf4f926111cadc4362c, type: 2}
-    blackKnightMaterial: {fileID: 2100000, guid: 14d4bad49c0f2cb4baf4ddc0105cac10,
-      type: 2}
-    blackBishopMaterial: {fileID: 2100000, guid: 80a75981cf18114408ccb1fec6f6b84c,
-      type: 2}
-    blackQueenMaterial: {fileID: 2100000, guid: 8c0fc3260e6b4bf48865cc982949a73b,
-      type: 2}
-    blackKingMaterial: {fileID: 2100000, guid: 1e4ddfe21e7128e4494e1428928e95a5, type: 2}
-  - skinId: 1
-    skinName: 1
-    skinDescription: 1
+    firstSkinId: Gold
+    secondSkinId: Silver
+  - skinId: RedXBlue
+    skinName: Red X Blue
+    skinDescription: Red and Blue Pieces
     price: 0
     previewImage: {fileID: 0}
-    whitePawnMaterial: {fileID: 2100000, guid: db5b8d5f7de00144f911010d637f529d, type: 2}
-    whiteRookMaterial: {fileID: 2100000, guid: f17ef947c81b37241b97af95d8a44fbd, type: 2}
-    whiteKnightMaterial: {fileID: 2100000, guid: 493a40c4620dbd6438c1b6c50d529c95,
-      type: 2}
-    whiteBishopMaterial: {fileID: 2100000, guid: 01d5373202b2efd44a22d993e0f50037,
-      type: 2}
-    whiteQueenMaterial: {fileID: 2100000, guid: 63a20269b65c0c244bbce2061f5ffc4c,
-      type: 2}
-    whiteKingMaterial: {fileID: 2100000, guid: fcad4bed89dfe464f8cd32c30b462af0, type: 2}
-    blackPawnMaterial: {fileID: 2100000, guid: 6a0969fd19afc9c4c94b74621f550821, type: 2}
-    blackRookMaterial: {fileID: 2100000, guid: af3c6f2a272a0984db24067c83971aaf, type: 2}
-    blackKnightMaterial: {fileID: 2100000, guid: 3fe57fe963e425b42914785ee9f70a2f,
-      type: 2}
-    blackBishopMaterial: {fileID: 2100000, guid: 7fe8b8eba1eb3df48b5e30e639aed56e,
-      type: 2}
-    blackQueenMaterial: {fileID: 2100000, guid: 000a31d713811d741a35bf41aca5b255,
-      type: 2}
-    blackKingMaterial: {fileID: 2100000, guid: 956e9a789db3f1849a36c790cad5528a, type: 2}
-  - skinId: 2
-    skinName: 2
-    skinDescription: 2
+    firstSkinId: Red
+    secondSkinId: Blue
+  - skinId: BlackXWhite
+    skinName: Black X White
+    skinDescription: Default Pieces
     price: 0
     previewImage: {fileID: 0}
-    whitePawnMaterial: {fileID: 2100000, guid: c1e46cda70a507943868c58399317e91, type: 2}
-    whiteRookMaterial: {fileID: 2100000, guid: 34d887a7e60661245beb4f8f9e8684a6, type: 2}
-    whiteKnightMaterial: {fileID: 2100000, guid: 7f9d0fa15844a1c4ba080be8ff078036,
-      type: 2}
-    whiteBishopMaterial: {fileID: 2100000, guid: 18963c0a754034a4bafe6661929156fc,
-      type: 2}
-    whiteQueenMaterial: {fileID: 2100000, guid: eefd3bf6fad5788428038a0aed86c6ee,
-      type: 2}
-    whiteKingMaterial: {fileID: 2100000, guid: 25f340481dab92b49a393fe4fbd97735, type: 2}
-    blackPawnMaterial: {fileID: 2100000, guid: 8e2e5c45970057f48bd7545d0acd84b7, type: 2}
-    blackRookMaterial: {fileID: 2100000, guid: 3e0d31cb58de5404bb008e99034bc5d4, type: 2}
-    blackKnightMaterial: {fileID: 2100000, guid: 58dc7e4643171d145888e03582d9a423,
-      type: 2}
-    blackBishopMaterial: {fileID: 2100000, guid: bb0c9adc9b877914399944d8e49a5ccc,
-      type: 2}
-    blackQueenMaterial: {fileID: 2100000, guid: 8bae13861d4c71d4dae275272a10c845,
-      type: 2}
-    blackKingMaterial: {fileID: 2100000, guid: 58dc7e4643171d145888e03582d9a423, type: 2}
+    firstSkinId: 
+    secondSkinId: 
+  materialDownloader: {fileID: 1060503410}
 --- !u!1001 &7463109366908870894
 PrefabInstance:
   m_ObjectHideFlags: 0
