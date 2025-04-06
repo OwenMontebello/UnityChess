@@ -14,9 +14,8 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         public string skinDescription;
         public int price = 50;
         public Sprite previewImage;
-        
-        public string firstSkinId;  // White pieces skin type (Gold, Silver, etc.)
-        public string secondSkinId; // Black pieces skin type
+        public string firstSkinId;  // For White pieces (e.g., "Gold", "Red")
+        public string secondSkinId; // For Black pieces (e.g., "Silver", "Blue")
     }
 
     [Header("UI References")]
@@ -57,73 +56,66 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             secondSkinId = "Default"
         }
     };
-    
+
     [Header("Dynamic Skin Loading")]
     [SerializeField] private FirebaseMaterialDownloader materialDownloader;
 
-    // Player currency (for demo purposes)
-    private int playerCurrency = 1000;
-    
-    // List of skins the player owns
+    // Local list of owned skins and the currently equipped skin.
     private List<string> ownedSkinIds = new List<string>();
-    
-    // Currently equipped skin
     private string currentEquippedSkinId = "BlackXWhite";
+
+    // The single source of truth for currency.
+    private PurchaseTransactionHandler purchaseHandler;
 
     private void Start()
     {
-        // Initialize store UI
+        // Optionally clear old data for testing:
+        // PlayerPrefs.DeleteKey("PlayerCredits");
+
+        purchaseHandler = new PurchaseTransactionHandler();
+
         if (closeStoreButton != null)
             closeStoreButton.onClick.AddListener(CloseStore);
-            
-        // Hide store on startup
         if (storePanel != null)
             storePanel.SetActive(false);
-            
-        // Add default skin to owned skins
+
+        // Add default skin.
         ownedSkinIds.Add("BlackXWhite");
-        
-        // Find FirebaseMaterialDownloader if not assigned
+
         if (materialDownloader == null)
         {
             materialDownloader = FindObjectOfType<FirebaseMaterialDownloader>();
             if (materialDownloader == null)
-            {
                 Debug.LogError("FirebaseMaterialDownloader not found!");
-            }
         }
-        
-        // Initialize the store items
+
+        LoadPlayerData();
+        UpdateCurrencyDisplay();
         PopulateStoreItems();
     }
-    
+
     public void OpenStore()
     {
         storePanel.SetActive(true);
         UpdateCurrencyDisplay();
     }
-    
+
     public void CloseStore()
     {
         storePanel.SetActive(false);
     }
-    
+
     private void PopulateStoreItems()
     {
-        // Clear existing items
         if (skinItemsContainer != null)
         {
             foreach (Transform child in skinItemsContainer)
-            {
                 Destroy(child.gameObject);
-            }
-            
-            // Create a new item for each skin
+
             foreach (ChessSkin skin in availableSkins)
             {
                 GameObject skinItemGO = Instantiate(skinItemPrefab, skinItemsContainer);
                 SkinItemUI skinItem = skinItemGO.GetComponent<SkinItemUI>();
-                
                 if (skinItem != null)
                 {
                     bool isOwned = ownedSkinIds.Contains(skin.skinId);
@@ -136,149 +128,185 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             Debug.LogError("skinItemsContainer is not assigned!");
         }
     }
-    
+
     public void PurchaseSkin(string skinId)
     {
-        // Find the skin in available skins
         ChessSkin skinToPurchase = availableSkins.FirstOrDefault(s => s.skinId == skinId);
-        
         if (skinToPurchase != null && !ownedSkinIds.Contains(skinId))
         {
-            // Check if player has enough currency
-            if (playerCurrency >= skinToPurchase.price)
+            if (purchaseHandler.PurchaseSkin(skinId, skinToPurchase.price))
             {
-                // Deduct currency
-                playerCurrency -= skinToPurchase.price;
-                
-                // Add to owned skins
-                ownedSkinIds.Add(skinId);
-                
-                // Download the skin
-                if (skinToPurchase.firstSkinId != "Default" && !string.IsNullOrEmpty(skinToPurchase.firstSkinId))
-                {
-                    materialDownloader.DownloadFullSkin(skinToPurchase.firstSkinId);
-                }
-                
-                if (skinToPurchase.secondSkinId != "Default" && !string.IsNullOrEmpty(skinToPurchase.secondSkinId))
-                {
-                    materialDownloader.DownloadFullSkin(skinToPurchase.secondSkinId);
-                }
-                
-                // Update UI
+                LoadPlayerData();
                 UpdateCurrencyDisplay();
                 PopulateStoreItems();
-                
+
+                if (!string.IsNullOrEmpty(skinToPurchase.firstSkinId) && skinToPurchase.firstSkinId != "Default")
+                    materialDownloader.DownloadFullSkin(skinToPurchase.firstSkinId);
+                if (!string.IsNullOrEmpty(skinToPurchase.secondSkinId) && skinToPurchase.secondSkinId != "Default")
+                    materialDownloader.DownloadFullSkin(skinToPurchase.secondSkinId);
                 Debug.Log($"Purchased skin: {skinToPurchase.skinName}");
             }
             else
             {
-                Debug.Log("Not enough currency to purchase skin!");
-                // You could show a UI message here
+                Debug.Log("Purchase transaction failed.");
             }
         }
     }
-    
-    private void UpdateCurrencyDisplay()
-    {
-        if (playerCurrencyText != null)
-        {
-            playerCurrencyText.text = $"Credits: {playerCurrency}";
-        }
-    }
-    
-    // For testing - add currency to player
-    public void AddCurrency(int amount)
-    {
-        playerCurrency += amount;
-        UpdateCurrencyDisplay();
-    }
 
-    // Call this method from each equip button
     public void EquipSkin(int skinIndex)
     {
         Debug.Log($"Equipping skin at index {skinIndex}");
-        
         if (skinIndex < 0 || skinIndex >= availableSkins.Count)
         {
             Debug.LogWarning($"Invalid skin index: {skinIndex}");
             return;
         }
-
         ChessSkin skin = availableSkins[skinIndex];
-        Debug.Log($"Selected skin: {skin.skinName}, firstSkinId: {skin.firstSkinId}, secondSkinId: {skin.secondSkinId}");
-        
-        // Check if skin is owned or purchasable
+        Debug.Log($"Selected skin: {skin.skinName}");
+
+        // If not owned, purchase it.
         if (!ownedSkinIds.Contains(skin.skinId))
         {
-            if (playerCurrency >= skin.price)
+            if (purchaseHandler.PurchaseSkin(skin.skinId, skin.price))
             {
-                Debug.Log($"Purchasing skin {skin.skinName} for {skin.price} credits");
-                playerCurrency -= skin.price;
-                ownedSkinIds.Add(skin.skinId);
-                
-                // Download the skin immediately after purchase
-                if (skin.firstSkinId != "Default" && !string.IsNullOrEmpty(skin.firstSkinId))
-                {
-                    materialDownloader.DownloadFullSkin(skin.firstSkinId);
-                }
-                
-                if (skin.secondSkinId != "Default" && !string.IsNullOrEmpty(skin.secondSkinId))
-                {
-                    materialDownloader.DownloadFullSkin(skin.secondSkinId);
-                }
-                
+                LoadPlayerData();
                 UpdateCurrencyDisplay();
                 PopulateStoreItems();
+                if (!string.IsNullOrEmpty(skin.firstSkinId) && skin.firstSkinId != "Default")
+                    materialDownloader.DownloadFullSkin(skin.firstSkinId);
+                if (!string.IsNullOrEmpty(skin.secondSkinId) && skin.secondSkinId != "Default")
+                    materialDownloader.DownloadFullSkin(skin.secondSkinId);
+                Debug.Log($"After purchase, credits: £{purchaseHandler.GetPlayerCredits()}");
             }
             else
             {
-                Debug.Log($"Not enough currency to purchase skin! Price: {skin.price}");
+                Debug.Log($"Not enough currency to purchase skin! Price: £{skin.price}, Current: £{purchaseHandler.GetPlayerCredits()}");
+                return;
+            }
+        }
+        else
+        {
+            // Deduct equip cost each time even if owned.
+            if (purchaseHandler.DeductCredits(skin.price))
+                Debug.Log($"Deducted £{skin.price} for equipping {skin.skinName}");
+            else
+            {
+                Debug.Log($"Not enough credits to equip skin! Price: £{skin.price}, Current: {purchaseHandler.GetPlayerCredits()}");
                 return;
             }
         }
 
-        // Apply skin
+        // Optional: re-download files if missing.
+        if (!string.IsNullOrEmpty(skin.firstSkinId) && skin.firstSkinId != "Default")
+        {
+            if (!AreLocalFilesPresent(skin.firstSkinId))
+            {
+                Debug.Log($"Re-downloading {skin.firstSkinId} as local files are missing.");
+                materialDownloader.DownloadFullSkin(skin.firstSkinId);
+            }
+        }
+        if (!string.IsNullOrEmpty(skin.secondSkinId) && skin.secondSkinId != "Default")
+        {
+            if (!AreLocalFilesPresent(skin.secondSkinId))
+            {
+                Debug.Log($"Re-downloading {skin.secondSkinId} as local files are missing.");
+                materialDownloader.DownloadFullSkin(skin.secondSkinId);
+            }
+        }
+
         if (skin.skinId == "BlackXWhite")
         {
-            // Apply default materials
             ApplyDefaultMaterials();
         }
         else
         {
-            // Apply custom materials
-            if (skin.firstSkinId != "Default" && !string.IsNullOrEmpty(skin.firstSkinId))
-            {
+            if (!string.IsNullOrEmpty(skin.firstSkinId) && skin.firstSkinId != "Default")
                 materialDownloader.ApplySkinToPieces(skin.firstSkinId, Side.White);
-            }
-            
-            if (skin.secondSkinId != "Default" && !string.IsNullOrEmpty(skin.secondSkinId))
-            {
+            if (!string.IsNullOrEmpty(skin.secondSkinId) && skin.secondSkinId != "Default")
                 materialDownloader.ApplySkinToPieces(skin.secondSkinId, Side.Black);
-            }
         }
-        
-        // Save the equipped skin
+
         currentEquippedSkinId = skin.skinId;
+        SavePlayerData();
+        UpdateCurrencyDisplay();
         Debug.Log($"Equipped skin: {skin.skinName}");
     }
-    
+
+    private bool AreLocalFilesPresent(string skinName)
+    {
+        string[] pieceTypes = { "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" };
+        foreach (string pieceType in pieceTypes)
+        {
+            if (!materialDownloader.IsMaterialDownloaded(skinName, pieceType))
+                return false;
+        }
+        return true;
+    }
+
     private void ApplyDefaultMaterials()
     {
         Debug.Log("Applying default black and white materials");
-        
         VisualPiece[] pieces = FindObjectsOfType<VisualPiece>();
-        
         foreach (VisualPiece piece in pieces)
         {
             Renderer renderer = piece.GetComponent<Renderer>();
             if (renderer == null) continue;
-            
-            // Create a basic material
             Material defaultMaterial = new Material(Shader.Find("Standard"));
             defaultMaterial.color = piece.PieceColor == Side.White ? Color.white : Color.black;
-            
             renderer.material = defaultMaterial;
             Debug.Log($"Applied default material to {piece.name}");
         }
+    }
+
+    private void UpdateCurrencyDisplay()
+    {
+        int currentCredits = purchaseHandler.GetPlayerCredits();
+        if (playerCurrencyText != null)
+        {
+            playerCurrencyText.text = $"£ {currentCredits}";
+            Debug.Log("Updated currency display: £ " + currentCredits);
+        }
+    }
+
+    private void SavePlayerData()
+    {
+        // Save owned skins locally.
+        string ownedSkinsList = string.Join(",", ownedSkinIds);
+        PlayerPrefs.SetString("OwnedSkins", ownedSkinsList);
+        // Save credits from purchaseHandler.
+        PlayerPrefs.SetInt("PlayerCredits", purchaseHandler.GetPlayerCredits());
+        PlayerPrefs.SetString("EquippedSkin", currentEquippedSkinId);
+        PlayerPrefs.Save();
+        Debug.Log("Player data saved.");
+    }
+
+    private void LoadPlayerData()
+    {
+        if (PlayerPrefs.HasKey("OwnedSkins"))
+        {
+            string savedSkins = PlayerPrefs.GetString("OwnedSkins");
+            if (!string.IsNullOrEmpty(savedSkins))
+                ownedSkinIds = new List<string>(savedSkins.Split(','));
+        }
+        if (PlayerPrefs.HasKey("PlayerCredits"))
+        {
+            int credits = PlayerPrefs.GetInt("PlayerCredits");
+            Debug.Log("Loaded PlayerCredits: " + credits);
+        }
+        else
+        {
+            Debug.Log("PlayerCredits not found, defaulting to 200");
+        }
+        if (PlayerPrefs.HasKey("EquippedSkin"))
+            currentEquippedSkinId = PlayerPrefs.GetString("EquippedSkin");
+
+        Debug.Log($"Player data loaded. Owned skins: {ownedSkinIds.Count}");
+    }
+
+    // NEW: Button method to add 50 currency.
+    public void AddFiftyCurrency()
+    {
+        purchaseHandler.AddCurrency(50);
+        UpdateCurrencyDisplay();
     }
 }

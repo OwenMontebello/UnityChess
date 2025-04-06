@@ -26,9 +26,9 @@ public class SkinItemUI : MonoBehaviour
         // Configure the purchase button based on ownership
         if (isOwned)
         {
-            buttonText.text = "OWNED";
+            buttonText.text = "EQUIP";
             priceText.text = "";
-            purchaseButton.interactable = false;
+            purchaseButton.interactable = true;
         }
         else
         {
