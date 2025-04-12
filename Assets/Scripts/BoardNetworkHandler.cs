@@ -403,4 +403,40 @@ public class BoardNetworkHandler : NetworkBehaviour
             }
         }
     }
+    
+    /// <summary>
+    /// Broadcasts a skin equipped notification to all clients
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void NotifySkinEquippedServerRpc(string skinName, string playerSide, ServerRpcParams rpcParams = default)
+    {
+        // Get the client ID of the player who equipped the skin
+        ulong clientId = rpcParams.Receive.SenderClientId;
+        
+        // Get the player's side if available
+        Side playerSideEnum = Side.White; // Default to White
+        if (playerSide == "Black")
+            playerSideEnum = Side.Black;
+        
+        // Send notification to all clients
+        NotifySkinEquippedClientRpc(skinName, playerSideEnum == Side.White ? 0 : 1, clientId);
+    }
+
+    [ClientRpc]
+    public void NotifySkinEquippedClientRpc(string skinName, int playerSideValue, ulong clientId)
+    {
+        Side playerSide = (Side)playerSideValue;
+        
+        // Skip showing notification for the player who equipped the skin
+        if (clientId == NetworkManager.Singleton.LocalClientId)
+            return;
+        
+        // Get the DLC Store Manager
+        DLCStoreManager dlcManager = DLCStoreManager.Instance;
+        if (dlcManager != null)
+        {
+            string playerLabel = playerSide == Side.White ? "White player" : "Black player";
+            dlcManager.ShowSkinNotification($"{playerLabel} equipped {skinName} skin!");
+        }
+    }
 }

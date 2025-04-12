@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
 using UnityChess;
+using System.Collections;
+using Unity.Netcode;
+using System.Reflection;
 
 public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
 {
@@ -24,6 +27,12 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
     [SerializeField] private GameObject skinItemPrefab;
     [SerializeField] private Button closeStoreButton;
     [SerializeField] private Text playerCurrencyText;
+    
+    // New UI elements for skin notification
+    [Header("Skin Notification")]
+    [SerializeField] private GameObject notificationPanel;
+    [SerializeField] private Text notificationText;
+    [SerializeField] private float notificationDuration = 3f;
 
     [Header("Store Configuration")]
     [SerializeField] private List<ChessSkin> availableSkins = new List<ChessSkin>
@@ -66,6 +75,9 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
 
     // The single source of truth for currency.
     private PurchaseTransactionHandler purchaseHandler;
+    
+    // Coroutine reference for notification
+    private Coroutine notificationCoroutine;
 
     private void Start()
     {
@@ -78,6 +90,10 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             closeStoreButton.onClick.AddListener(CloseStore);
         if (storePanel != null)
             storePanel.SetActive(false);
+            
+        // Initialize notification panel
+        if (notificationPanel != null)
+            notificationPanel.SetActive(false);
 
         // Add default skin.
         ownedSkinIds.Add("BlackXWhite");
@@ -92,6 +108,9 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         LoadPlayerData();
         UpdateCurrencyDisplay();
         PopulateStoreItems();
+        
+        // Uncomment this line to create test buttons
+        // TestPlayerNotifications();
     }
 
     public void OpenStore()
@@ -229,9 +248,127 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         currentEquippedSkinId = skin.skinId;
         SavePlayerData();
         UpdateCurrencyDisplay();
+        
+        // Debug log for notification
+        Debug.Log($"About to show notification for skin: {skin.skinName}");
+
+        // Get player side info for clearer messaging
+        string playerSideStr = "You";
+        Side playerSide = Side.White; // Default
+
+        // Try to get the player's side from UIManager if available
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && UIManager.Instance != null)
+        {
+            FieldInfo fieldInfo = typeof(UIManager).GetField("localPlayerSide", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fieldInfo != null)
+            {
+                playerSide = (Side)fieldInfo.GetValue(UIManager.Instance);
+                playerSideStr = playerSide.ToString();
+                Debug.Log($"Retrieved player side: {playerSide}");
+            }
+        }
+
+        // Show notification locally with clearer message
+        string localMessage = $"{playerSideStr} equipped the {skin.skinName} skin!";
+        ShowSkinNotification(localMessage);
+        
+        // Send notification to all clients if in network mode
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            Debug.Log("NetworkManager detected, sending network notification");
+            
+            // Use the player side we just determined
+            string sideStr = playerSide.ToString();
+            Debug.Log($"Sending skin notification over network. Skin: {skin.skinName}, Side: {sideStr}");
+            
+            if (NetworkManager.Singleton.IsServer)
+            {
+                // If server, broadcast to all clients
+                Debug.Log("Broadcasting from server directly");
+                BoardNetworkHandler.Instance.NotifySkinEquippedClientRpc(skin.skinName, playerSide == Side.White ? 0 : 1, NetworkManager.Singleton.LocalClientId);
+            }
+            else
+            {
+                // If client, request server to broadcast
+                Debug.Log("Requesting server to broadcast");
+                BoardNetworkHandler.Instance.NotifySkinEquippedServerRpc(skin.skinName, sideStr);
+            }
+        }
+        
         Debug.Log($"Equipped skin: {skin.skinName}");
     }
+    
+    // Show notification locally on this client
+    public void ShowSkinNotification(string skinName)
+    {
+        Debug.Log($"DLCStoreManager.ShowSkinNotification called with: {skinName}");
+        
+        if (notificationPanel == null)
+        {
+            Debug.LogError("Notification panel is NULL! Please assign it in the inspector.");
+            return;
+        }
+        
+        if (notificationText == null)
+        {
+            Debug.LogError("Notification text is NULL! Please assign it in the inspector.");
+            return;
+        }
+        
+        // Instead of trying to use SkinNotificationPanel component,
+        // we'll handle the notification directly in the DLCStoreManager
+        // which is guaranteed to be active
+        if (notificationCoroutine != null)
+        {
+            StopCoroutine(notificationCoroutine);
+            Debug.Log("Stopped existing notification coroutine");
+        }
+        
+        Debug.Log("Starting notification coroutine from DLCStoreManager");
+        notificationCoroutine = StartCoroutine(ShowNotificationCoroutine(skinName));
+    }
 
+    private IEnumerator ShowNotificationCoroutine(string skinName)
+    {
+        Debug.Log($"ShowNotificationCoroutine started for: {skinName}");
+        
+        // Format the message to include player information
+        string playerInfo = "";
+        
+        // Check if we're in network mode
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            // Determine if this is a local notification or from another player
+            if (skinName.StartsWith("You equipped"))
+            {
+                // This is a local notification, use as is
+                notificationText.text = skinName;
+            }
+            else
+            {
+                // This is a remote player notification, use the passed message
+                notificationText.text = skinName;
+            }
+        }
+        else
+        {
+            // Single player mode
+            notificationText.text = skinName;
+        }
+        
+        // Show notification
+        notificationPanel.SetActive(true);
+        Debug.Log($"Notification panel activated with message: {notificationText.text}");
+        
+        // Wait for duration
+        yield return new WaitForSeconds(notificationDuration);
+        
+        // Hide notification
+        notificationPanel.SetActive(false);
+        notificationCoroutine = null;
+        Debug.Log("Notification panel hidden");
+    }
+    
     private bool AreLocalFilesPresent(string skinName)
     {
         string[] pieceTypes = { "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" };
@@ -308,5 +445,111 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
     {
         purchaseHandler.AddCurrency(50);
         UpdateCurrencyDisplay();
+    }
+    
+    // Helper method to get skin index by ID
+    public int GetSkinIndex(string skinId)
+    {
+        for (int i = 0; i < availableSkins.Count; i++)
+        {
+            if (availableSkins[i].skinId == skinId)
+                return i;
+        }
+        return -1;
+    }
+    
+    // Test method to manually trigger notification
+    public void TestNotification()
+    {
+        Debug.Log("Testing notification");
+        
+        if (notificationPanel != null && notificationText != null)
+        {
+            ShowSkinNotification("Test Notification");
+        }
+        else
+        {
+            Debug.LogError($"Cannot show notification. Panel: {notificationPanel != null}, Text: {notificationText != null}");
+        }
+    }
+    
+    // Method to test both types of notifications
+    public void TestPlayerNotifications()
+    {
+        // Create a test button in the UI if not already present
+        if (GameObject.Find("TestNotificationButton") == null)
+        {
+            // Find canvas
+            GameObject canvas = GameObject.Find("Canvas");
+            if (canvas == null)
+            {
+                Debug.LogError("Canvas not found for test buttons");
+                return;
+            }
+            
+            // Create button for local player notification
+            GameObject localButtonObj = new GameObject("TestLocalNotification");
+            localButtonObj.transform.SetParent(canvas.transform, false);
+            
+            RectTransform localRt = localButtonObj.AddComponent<RectTransform>();
+            localRt.anchoredPosition = new Vector2(100, 50);
+            localRt.sizeDelta = new Vector2(160, 30);
+            
+            Image localImg = localButtonObj.AddComponent<Image>();
+            localImg.color = new Color(0.2f, 0.3f, 0.8f);
+            
+            Button localButton = localButtonObj.AddComponent<Button>();
+            
+            // Add text
+            GameObject localTxtObj = new GameObject("Text");
+            localTxtObj.transform.SetParent(localButtonObj.transform, false);
+            
+            RectTransform localTxtRT = localTxtObj.AddComponent<RectTransform>();
+            localTxtRT.anchorMin = Vector2.zero;
+            localTxtRT.anchorMax = Vector2.one;
+            localTxtRT.sizeDelta = Vector2.zero;
+            
+            Text localTxt = localTxtObj.AddComponent<Text>();
+            localTxt.text = "Test Local";
+            localTxt.alignment = TextAnchor.MiddleCenter;
+            localTxt.color = Color.white;
+            
+            localButton.onClick.AddListener(() => {
+                ShowSkinNotification("You equipped the Test Skin!");
+            });
+            
+            // Create button for remote player notification
+            GameObject remoteButtonObj = new GameObject("TestRemoteNotification");
+            remoteButtonObj.transform.SetParent(canvas.transform, false);
+            
+            RectTransform remoteRt = remoteButtonObj.AddComponent<RectTransform>();
+            remoteRt.anchoredPosition = new Vector2(100, 0);
+            remoteRt.sizeDelta = new Vector2(160, 30);
+            
+            Image remoteImg = remoteButtonObj.AddComponent<Image>();
+            remoteImg.color = new Color(0.8f, 0.3f, 0.2f);
+            
+            Button remoteButton = remoteButtonObj.AddComponent<Button>();
+            
+            // Add text
+            GameObject remoteTxtObj = new GameObject("Text");
+            remoteTxtObj.transform.SetParent(remoteButtonObj.transform, false);
+            
+            RectTransform remoteTxtRT = remoteTxtObj.AddComponent<RectTransform>();
+            remoteTxtRT.anchorMin = Vector2.zero;
+            remoteTxtRT.anchorMax = Vector2.one;
+            remoteTxtRT.sizeDelta = Vector2.zero;
+            
+            Text remoteTxt = remoteTxtObj.AddComponent<Text>();
+            remoteTxt.text = "Test Remote";
+            remoteTxt.alignment = TextAnchor.MiddleCenter;
+            remoteTxt.color = Color.white;
+            
+            remoteButton.onClick.AddListener(() => {
+                ShowSkinNotification("White player equipped the Test Skin!");
+            });
+            
+            Debug.Log("Created test notification buttons");
+        }
     }
 }
