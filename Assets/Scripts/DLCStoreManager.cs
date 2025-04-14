@@ -23,6 +23,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
 
     [Header("UI References")]
     [SerializeField] private GameObject storePanel;
+    [SerializeField] private GameObject GameAnalyticsui;
     [SerializeField] private Transform skinItemsContainer;
     [SerializeField] private GameObject skinItemPrefab;
     [SerializeField] private Button closeStoreButton;
@@ -90,7 +91,8 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             closeStoreButton.onClick.AddListener(CloseStore);
         if (storePanel != null)
             storePanel.SetActive(false);
-            
+        if (GameAnalyticsui != null)
+            GameAnalyticsui.SetActive(false);
         // Initialize notification panel
         if (notificationPanel != null)
             notificationPanel.SetActive(false);
@@ -117,6 +119,11 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
     {
         storePanel.SetActive(true);
         UpdateCurrencyDisplay();
+    }
+
+    public void OpenGameAnalyticsui()
+    {
+        GameAnalyticsui.SetActive(true);
     }
 
     public void CloseStore()
