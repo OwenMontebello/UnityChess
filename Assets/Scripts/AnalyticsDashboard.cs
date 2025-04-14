@@ -1,23 +1,21 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
-using Firebase.Analytics;
-using System;
 using UnityChess;
 
-public class AnalyticsDashboard : MonoBehaviour
+public class AnalyticsDashboard : MonoBehaviourSingleton<AnalyticsDashboard>
 {
     [Header("UI Components")]
     [SerializeField] private GameObject dashboardPanel;
-    [SerializeField] private Text totalMatchesText;
-    [SerializeField] private Text totalPurchasesText;
-    [SerializeField] private Text topSkinText;
-    [SerializeField] private Text lastMatchResultText;
+    [SerializeField] public Text totalMatchesText;
+    [SerializeField] public Text totalPurchasesText;
+    [SerializeField] public Text topSkinText;
+    [SerializeField] public Text lastMatchResultText;
     [SerializeField] private Button closeDashboardButton;
-    [SerializeField] private Button refreshDataButton;
+    [SerializeField] public Button refreshDataButton;
     
     // Local analytics tracking for demonstration
-    // In a real implementation, you would fetch this data from Firebase
+    // These will be updated by Firestore
     private int totalMatches = 0;
     private int totalPurchases = 0;
     private Dictionary<string, int> skinPurchaseCounts = new Dictionary<string, int>();
@@ -58,7 +56,7 @@ public class AnalyticsDashboard : MonoBehaviour
         UpdateUI();
     }
     
-    private void OnMatchEnded()
+    public void OnMatchEnded()
     {
         // Get game result
         if (GameManager.Instance.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove))
@@ -76,7 +74,7 @@ public class AnalyticsDashboard : MonoBehaviour
         UpdateUI();
     }
     
-    // This would be called by DLCStoreManager when a purchase is made
+    // This would be called when a skin is purchased
     public void OnSkinPurchased(string skinName)
     {
         totalPurchases++;
@@ -103,13 +101,49 @@ public class AnalyticsDashboard : MonoBehaviour
             dashboardPanel.SetActive(false);
     }
     
-    private void RefreshData()
+    public void RefreshData()
     {
-        // In a real implementation, you would fetch this data from Firebase
-        // For this assignment, we'll use our locally tracked data
-        
-        Debug.Log("Refreshing analytics dashboard data");
-        UpdateUI();
+        // Try to get data from FirestoreAnalyticsManager
+        var firestoreManager = FirestoreAnalyticsManager.Instance;
+        if (firestoreManager != null)
+        {
+            Debug.Log("Refreshing data from Firestore...");
+            firestoreManager.RefreshDashboardData();
+        }
+        else
+        {
+            // Fallback to local data if Firestore isn't available
+            Debug.Log("FirestoreAnalyticsManager not found, using local data");
+            UpdateUI();
+        }
+    }
+    
+    // Public methods for FirestoreAnalyticsManager to call
+    public void UpdateTotalMatches(int count)
+    {
+        totalMatches = count;
+        if (totalMatchesText != null)
+            totalMatchesText.text = $"Total Matches: {totalMatches}";
+    }
+
+    public void UpdateTotalPurchases(int count)
+    {
+        totalPurchases = count;
+        if (totalPurchasesText != null)
+            totalPurchasesText.text = $"Total Purchases: {totalPurchases}";
+    }
+
+    public void UpdateTopSkin(string skinName, int count)
+    {
+        if (topSkinText != null)
+            topSkinText.text = $"Most Popular Skin: {skinName} ({count})";
+    }
+    
+    public void UpdateLastMatchResult(string result)
+    {
+        lastMatchResult = result;
+        if (lastMatchResultText != null)
+            lastMatchResultText.text = $"Last Match: {lastMatchResult}";
     }
     
     private void UpdateUI()
