@@ -1,12 +1,8 @@
 using UnityEngine;
-using System;
 
 // This script should be attached to the DLCStoreManager
 public class DLCAnalyticsIntegration : MonoBehaviour
 {
-    // Event for notifying the FirestoreAnalyticsManager
-    public event Action<string, string, int> LogSkinPurchase;
-    
     private DLCStoreManager dlcManager;
     
     private void Start()
@@ -35,16 +31,16 @@ public class DLCAnalyticsIntegration : MonoBehaviour
     }
     
     // Call this method when a skin is purchased
-    public void TrackSkinPurchase(string skinId, string skinName, int price)
+    public void LogSkinPurchase(string skinId, string skinName, int price)
     {
-        // Notify subscribers (FirestoreAnalyticsManager)
-        LogSkinPurchase?.Invoke(skinId, skinName, price);
+        FirebaseAnalyticsManager.Instance.LogSkinPurchase(skinId, skinName, price);
         Debug.Log($"[Analytics] Skin purchased - ID: {skinId}, Name: {skinName}, Price: {price}");
     }
     
     // Call this method when a skin is equipped
-    public void TrackSkinEquipped(string skinId, string skinName)
+    public void LogSkinEquipped(string skinId, string skinName)
     {
+        FirebaseAnalyticsManager.Instance.LogSkinEquipped(skinId, skinName);
         Debug.Log($"[Analytics] Skin equipped - ID: {skinId}, Name: {skinName}");
     }
 }

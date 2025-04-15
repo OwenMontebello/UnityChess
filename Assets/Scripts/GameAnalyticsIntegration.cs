@@ -46,12 +46,8 @@ public class GameAnalyticsIntegration : MonoBehaviour
         }
         
         // Log match start event
-        // Use FirestoreAnalyticsManager instead of FirebaseAnalyticsManager
-        if (FirestoreAnalyticsManager.Instance != null)
-        {
-            // FirestoreAnalyticsManager handles this through its own event subscriptions
-            Debug.Log($"[Analytics] Match started - ID: {currentMatchId}, Hosting: {isHosting}");
-        }
+        FirebaseAnalyticsManager.Instance.LogMatchStart(isHosting, currentMatchId);
+        Debug.Log($"[Analytics] Match started - ID: {currentMatchId}, Hosting: {isHosting}");
     }
 
     private void OnGameEnded()
@@ -63,20 +59,21 @@ public class GameAnalyticsIntegration : MonoBehaviour
         string winningSide = null;
         
         // Get the latest move to determine the end condition
-        if (gameManager.HalfMoveTimeline.TryGetCurrent(out HalfMove latestMove))
+        if (gameManager.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove))
         {
-            if (latestMove.CausedCheckmate)
+            if (latestHalfMove.CausedCheckmate)
             {
                 result = "checkmate";
-                winningSide = latestMove.Piece.Owner.ToString();
+                winningSide = latestHalfMove.Piece.Owner.ToString();
             }
-            else if (latestMove.CausedStalemate)
+            else if (latestHalfMove.CausedStalemate)
             {
                 result = "stalemate";
             }
         }
         
-        // Log match end event - FirestoreAnalyticsManager handles this through its own event subscriptions
+        // Log match end event
+        FirebaseAnalyticsManager.Instance.LogMatchEnd(currentMatchId, result, moveCount, winningSide);
         Debug.Log($"[Analytics] Match ended - ID: {currentMatchId}, Result: {result}, Moves: {moveCount}");
     }
 
@@ -93,7 +90,12 @@ public class GameAnalyticsIntegration : MonoBehaviour
         isMatchInProgress = false;
         string winningSide = resigningSide == Side.White ? "Black" : "White";
         
-        // Use FirestoreAnalyticsManager instead of FirebaseAnalyticsManager
+        FirebaseAnalyticsManager.Instance.LogMatchEnd(
+            currentMatchId, 
+            "resignation", 
+            moveCount, 
+            winningSide);
+            
         Debug.Log($"[Analytics] Player resigned - ID: {currentMatchId}, Resigning: {resigningSide}, Winner: {winningSide}");
     }
 }
