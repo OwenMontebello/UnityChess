@@ -3,30 +3,25 @@ using UnityEngine;
 
 public class PurchaseTransactionHandler
 {
-    // The player's current credits.
+    // Player currency
     private int playerCredits;
-    // List of skin IDs that the player owns.
+    // Player owned items
     private List<string> ownedSkins;
 
-    // Constructor loads persistent data.
+    // Initialize and load data
     public PurchaseTransactionHandler()
     {
         LoadPlayerData();
         Debug.Log("PurchaseTransactionHandler created. Credits: " + playerCredits);
     }
 
-    /// <summary>
-    /// Checks if the player can afford a given cost.
-    /// </summary>
+    // Check if player can afford item
     public bool CanAfford(int cost)
     {
         return playerCredits >= cost;
     }
 
-    /// <summary>
-    /// Purchases a skin if not already owned.
-    /// Returns true if successful.
-    /// </summary>
+    // Try to buy a skin
     public bool PurchaseSkin(string skinId, int cost)
     {
         if (ownedSkins.Contains(skinId))
@@ -47,10 +42,7 @@ public class PurchaseTransactionHandler
         return true;
     }
 
-    /// <summary>
-    /// Deducts credits (used for equipping).
-    /// Returns true if successful.
-    /// </summary>
+    // Pay for equipping a skin
     public bool DeductCredits(int cost)
     {
         if (!CanAfford(cost))
@@ -65,9 +57,7 @@ public class PurchaseTransactionHandler
         return true;
     }
 
-    /// <summary>
-    /// Adds currency to the player's balance.
-    /// </summary>
+    // Add currency to player
     public void AddCurrency(int amount)
     {
         playerCredits += amount;
@@ -75,13 +65,19 @@ public class PurchaseTransactionHandler
         Debug.Log("Added " + amount + " currency, new total: " + playerCredits);
     }
 
+    // Get player's currency
     public int GetPlayerCredits() => playerCredits;
+    
+    // Get player's owned skins
     public List<string> GetOwnedSkins() => ownedSkins;
 
+    // Load player data from storage
     private void LoadPlayerData()
     {
-        // Use "PlayerCredits" as the key.
+        // Load player currency, default 200
         playerCredits = PlayerPrefs.HasKey("PlayerCredits") ? PlayerPrefs.GetInt("PlayerCredits") : 200;
+        
+        // Load owned skins
         if (PlayerPrefs.HasKey("OwnedSkins"))
         {
             string savedSkins = PlayerPrefs.GetString("OwnedSkins");
@@ -95,6 +91,7 @@ public class PurchaseTransactionHandler
         }
     }
 
+    // Save player data to storage
     private void SavePlayerData()
     {
         PlayerPrefs.SetInt("PlayerCredits", playerCredits);

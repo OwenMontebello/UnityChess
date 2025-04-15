@@ -5,6 +5,7 @@ using UnityEngine;
 
 public class PlayerNetwork : NetworkBehaviour
 {
+    // Handle player spawn event
     public override void OnNetworkSpawn()
     {
         if (IsOwner)

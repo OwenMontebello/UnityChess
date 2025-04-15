@@ -7,6 +7,7 @@ public class DLCAnalyticsIntegration : MonoBehaviour
     
     private void Start()
     {
+        // Get reference to the store manager
         dlcManager = GetComponent<DLCStoreManager>();
         
         if (dlcManager == null)
@@ -15,8 +16,7 @@ public class DLCAnalyticsIntegration : MonoBehaviour
             return;
         }
         
-        // We'll use MonoBehaviour.Invoke to delay initialization slightly
-        // to ensure DLCStoreManager has completed its initialization
+        // Delay initialization to ensure store is ready
         Invoke("HookIntoExistingMethods", 0.5f);
         
         Debug.Log("DLC Analytics Integration initialized");
@@ -24,20 +24,18 @@ public class DLCAnalyticsIntegration : MonoBehaviour
     
     private void HookIntoExistingMethods()
     {
-        // We need to create this integration without modifying the original DLCStoreManager code
-        // So we'll create helper methods that can be called from appropriate places
-        
+        // Setup integration without modifying original code
         Debug.Log("DLC Analytics hooks established");
     }
     
-    // Call this method when a skin is purchased
+    // Track when player buys skin
     public void LogSkinPurchase(string skinId, string skinName, int price)
     {
         FirebaseAnalyticsManager.Instance.LogSkinPurchase(skinId, skinName, price);
         Debug.Log($"[Analytics] Skin purchased - ID: {skinId}, Name: {skinName}, Price: {price}");
     }
     
-    // Call this method when a skin is equipped
+    // Track when player uses skin
     public void LogSkinEquipped(string skinId, string skinName)
     {
         FirebaseAnalyticsManager.Instance.LogSkinEquipped(skinId, skinName);

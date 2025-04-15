@@ -10,32 +10,33 @@ using UnityChess;
 
 public class FirebaseMaterialDownloader : MonoBehaviour
 {
-    // Firebase Storage reference.
+    // Firebase connection
     private FirebaseStorage storage;
 
-    // Local folder where downloaded images are stored.
+    // Local storage path
     private string downloadPath;
 
-    // Delegates for download progress and completion.
+    // Download callbacks
     public delegate void DownloadProgressHandler(float progress);
     public delegate void DownloadCompleteHandler(bool success);
 
-    // Dictionary to track which materials have been downloaded.
+    // Track downloaded materials
     private Dictionary<string, bool> downloadedMaterials = new Dictionary<string, bool>();
 
     private void Start()
     {
-        // Set up the local download folder.
+        // Setup download folder
         downloadPath = Path.Combine(Application.persistentDataPath, "DownloadedMaterials");
         if (!Directory.Exists(downloadPath))
         {
             Directory.CreateDirectory(downloadPath);
         }
 
-        // Initialize Firebase.
+        // Initialize Firebase
         InitializeFirebase();
     }
 
+    // Connect to Firebase
     private void InitializeFirebase()
     {
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
@@ -52,9 +53,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         });
     }
 
-    /// <summary>
-    /// Downloads a skin image from Firebase Storage.
-    /// </summary>
+    // Download skin texture
     public void DownloadMaterial(
         string skinName,
         string materialName,
@@ -71,7 +70,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
 
         try
         {
-            // Use PNG extension for the file stored in Firebase.
+            // Firebase path
             string storagePath = $"{skinName} {materialName}.png";
             Debug.Log($"Attempting to access Firebase Storage path: {storagePath}");
 
@@ -83,7 +82,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
                 return;
             }
 
-            // Local path where the image will be saved.
+            // Local path
             string localPath = Path.Combine(downloadPath, $"{skinName}_{materialName}.png");
             Debug.Log($"Downloading from {storagePath} to {localPath}");
 
@@ -91,7 +90,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
             {
                 if (task.IsFaulted)
                 {
-                    // Extract error details.
+                    // Get error details
                     string errorMessage = "Unknown error";
                     if (task.Exception != null)
                     {
@@ -111,7 +110,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
                 if (task.IsCompleted)
                 {
                     Debug.Log($"Successfully downloaded {storagePath} to {localPath}");
-                    // Mark the file as downloaded.
+                    // Mark as downloaded
                     string key = $"{skinName}_{materialName}";
                     downloadedMaterials[key] = true;
                     onComplete?.Invoke(true);
@@ -129,9 +128,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Downloads all the images (for Pawn, Rook, Knight, Bishop, Queen, King) for a given skin.
-    /// </summary>
+    // Download all pieces for a skin
     public void DownloadFullSkin(string skinName, DownloadCompleteHandler onAllDownloadsComplete = null)
     {
         string[] materialNames = new string[] { "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" };
@@ -171,20 +168,18 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Checks whether the material image is downloaded.
-    /// </summary>
+    // Check if material exists locally
     public bool IsMaterialDownloaded(string skinName, string materialName)
     {
         string key = $"{skinName}_{materialName}";
 
-        // First, check the in-memory cache.
+        // Check memory cache first
         if (downloadedMaterials.TryGetValue(key, out bool isDownloaded) && isDownloaded)
         {
             return true;
         }
 
-        // Then, check the file system.
+        // Then check file system
         string localPath = Path.Combine(downloadPath, $"{skinName}_{materialName}.png");
         isDownloaded = File.Exists(localPath);
 
@@ -197,9 +192,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         return isDownloaded;
     }
 
-    /// <summary>
-    /// Loads the downloaded image from disk as a Texture2D and creates a Material.
-    /// </summary>
+    // Create material from downloaded file
     private Material LoadMaterialFromLocalFile(string skinName, string pieceType)
     {
         string localPath = Path.Combine(downloadPath, $"{skinName}_{pieceType}.png");
@@ -232,9 +225,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Applies the skin to all VisualPiece objects of the specified side.
-    /// </summary>
+    // Apply skin to pieces
     public void ApplySkinToPieces(string skinName, Side pieceColor)
     {
         Debug.Log($"Applying {skinName} skin to {pieceColor} pieces");
@@ -244,7 +235,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
 
         foreach (VisualPiece piece in pieces)
         {
-            // Only apply the skin to pieces of the specified color.
+            // Only apply to pieces of matching color
             if (piece.PieceColor != pieceColor)
                 continue;
 
@@ -252,12 +243,12 @@ public class FirebaseMaterialDownloader : MonoBehaviour
             if (renderer == null)
                 continue;
 
-            // Determine the type of piece (e.g., Pawn, Rook, Knight, etc.).
+            // Get piece type
             string pieceType = GetPieceType(piece);
             if (string.IsNullOrEmpty(pieceType))
                 continue;
 
-            // If the material image is downloaded, try to load it.
+            // Apply downloaded material if available
             if (IsMaterialDownloaded(skinName, pieceType))
             {
                 Material downloadedMat = LoadMaterialFromLocalFile(skinName, pieceType);
@@ -267,7 +258,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
                 }
                 else
                 {
-                    // Fallback to a default color-based material.
+                    // Fallback material
                     renderer.material = CreateMaterialForSkin(skinName, pieceColor);
                 }
                 appliedCount++;
@@ -282,9 +273,7 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         Debug.Log($"Applied {skinName} materials to {appliedCount} pieces");
     }
 
-    /// <summary>
-    /// Fallback method that creates a basic material if the downloaded file isn’t available.
-    /// </summary>
+    // Create fallback material
     private Material CreateMaterialForSkin(string skinName, Side pieceColor)
     {
         Material material = new Material(Shader.Find("Standard"));
@@ -311,16 +300,14 @@ public class FirebaseMaterialDownloader : MonoBehaviour
         }
         else
         {
-            // Default material based on piece color.
+            // Default colors
             material.color = pieceColor == Side.White ? Color.white : Color.black;
         }
 
         return material;
     }
 
-    /// <summary>
-    /// Determines the piece type based on the VisualPiece's name.
-    /// </summary>
+    // Identify piece type
     private string GetPieceType(VisualPiece piece)
     {
         string pieceName = piece.name.ToLower();

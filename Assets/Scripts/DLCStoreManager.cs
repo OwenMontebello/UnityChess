@@ -9,6 +9,7 @@ using System.Reflection;
 
 public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
 {
+    // Data structure for chess skins
     [System.Serializable]
     public class ChessSkin
     {
@@ -17,10 +18,11 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         public string skinDescription;
         public int price = 50;
         public Sprite previewImage;
-        public string firstSkinId;  // For White pieces (e.g., "Gold", "Red")
-        public string secondSkinId; // For Black pieces (e.g., "Silver", "Blue")
+        public string firstSkinId;  // For White pieces
+        public string secondSkinId; // For Black pieces
     }
 
+    // UI elements
     [Header("UI References")]
     [SerializeField] private GameObject storePanel;
     [SerializeField] private GameObject GameAnalyticsui;
@@ -29,12 +31,13 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
     [SerializeField] private Button closeStoreButton;
     [SerializeField] private Text playerCurrencyText;
     
-    // New UI elements for skin notification
+    // Notification UI
     [Header("Skin Notification")]
     [SerializeField] private GameObject notificationPanel;
     [SerializeField] private Text notificationText;
     [SerializeField] private float notificationDuration = 3f;
 
+    // Available skins data
     [Header("Store Configuration")]
     [SerializeField] private List<ChessSkin> availableSkins = new List<ChessSkin>
     {
@@ -67,39 +70,40 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     };
 
+    // Skin loading system
     [Header("Dynamic Skin Loading")]
     [SerializeField] private FirebaseMaterialDownloader materialDownloader;
 
-    // Local list of owned skins and the currently equipped skin.
+    // Player inventory
     private List<string> ownedSkinIds = new List<string>();
     private string currentEquippedSkinId = "BlackXWhite";
 
-    // The single source of truth for currency.
+    // Player economy
     private PurchaseTransactionHandler purchaseHandler;
     
-    // Coroutine reference for notification
+    // Notification animation
     private Coroutine notificationCoroutine;
 
     private void Start()
     {
-        // Optionally clear old data for testing:
-        // PlayerPrefs.DeleteKey("PlayerCredits");
-
+        // Setup economy system
         purchaseHandler = new PurchaseTransactionHandler();
 
+        // Setup UI
         if (closeStoreButton != null)
             closeStoreButton.onClick.AddListener(CloseStore);
         if (storePanel != null)
             storePanel.SetActive(false);
         if (GameAnalyticsui != null)
             GameAnalyticsui.SetActive(false);
-        // Initialize notification panel
+        // Hide notification initially
         if (notificationPanel != null)
             notificationPanel.SetActive(false);
 
-        // Add default skin.
+        // Default skin is always owned
         ownedSkinIds.Add("BlackXWhite");
 
+        // Find material downloader
         if (materialDownloader == null)
         {
             materialDownloader = FindObjectOfType<FirebaseMaterialDownloader>();
@@ -107,37 +111,41 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
                 Debug.LogError("FirebaseMaterialDownloader not found!");
         }
 
+        // Load saved data
         LoadPlayerData();
         UpdateCurrencyDisplay();
         PopulateStoreItems();
-        
-        // Uncomment this line to create test buttons
-        // TestPlayerNotifications();
     }
 
+    // Show the skin store
     public void OpenStore()
     {
         storePanel.SetActive(true);
         UpdateCurrencyDisplay();
     }
 
+    // Show analytics dashboard
     public void OpenGameAnalyticsui()
     {
         GameAnalyticsui.SetActive(true);
     }
 
+    // Hide the skin store
     public void CloseStore()
     {
         storePanel.SetActive(false);
     }
 
+    // Fill store with skin items
     private void PopulateStoreItems()
     {
         if (skinItemsContainer != null)
         {
+            // Clear existing items
             foreach (Transform child in skinItemsContainer)
                 Destroy(child.gameObject);
 
+            // Create item for each skin
             foreach (ChessSkin skin in availableSkins)
             {
                 GameObject skinItemGO = Instantiate(skinItemPrefab, skinItemsContainer);
@@ -155,6 +163,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     }
 
+    // Buy a skin
     public void PurchaseSkin(string skinId)
     {
         ChessSkin skinToPurchase = availableSkins.FirstOrDefault(s => s.skinId == skinId);
@@ -162,10 +171,12 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         {
             if (purchaseHandler.PurchaseSkin(skinId, skinToPurchase.price))
             {
+                // Update UI and data
                 LoadPlayerData();
                 UpdateCurrencyDisplay();
                 PopulateStoreItems();
 
+                // Download skin files
                 if (!string.IsNullOrEmpty(skinToPurchase.firstSkinId) && skinToPurchase.firstSkinId != "Default")
                     materialDownloader.DownloadFullSkin(skinToPurchase.firstSkinId);
                 if (!string.IsNullOrEmpty(skinToPurchase.secondSkinId) && skinToPurchase.secondSkinId != "Default")
@@ -179,6 +190,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     }
 
+    // Apply a skin to pieces
     public void EquipSkin(int skinIndex)
     {
         Debug.Log($"Equipping skin at index {skinIndex}");
@@ -190,14 +202,16 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         ChessSkin skin = availableSkins[skinIndex];
         Debug.Log($"Selected skin: {skin.skinName}");
 
-        // If not owned, purchase it.
+        // Buy if not owned
         if (!ownedSkinIds.Contains(skin.skinId))
         {
             if (purchaseHandler.PurchaseSkin(skin.skinId, skin.price))
             {
+                // Update UI and data
                 LoadPlayerData();
                 UpdateCurrencyDisplay();
                 PopulateStoreItems();
+                // Download skin files
                 if (!string.IsNullOrEmpty(skin.firstSkinId) && skin.firstSkinId != "Default")
                     materialDownloader.DownloadFullSkin(skin.firstSkinId);
                 if (!string.IsNullOrEmpty(skin.secondSkinId) && skin.secondSkinId != "Default")
@@ -212,7 +226,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
         else
         {
-            // Deduct equip cost each time even if owned.
+            // Pay to equip
             if (purchaseHandler.DeductCredits(skin.price))
                 Debug.Log($"Deducted £{skin.price} for equipping {skin.skinName}");
             else
@@ -222,7 +236,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             }
         }
 
-        // Optional: re-download files if missing.
+        // Download missing files
         if (!string.IsNullOrEmpty(skin.firstSkinId) && skin.firstSkinId != "Default")
         {
             if (!AreLocalFilesPresent(skin.firstSkinId))
@@ -240,6 +254,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             }
         }
 
+        // Apply the skin
         if (skin.skinId == "BlackXWhite")
         {
             ApplyDefaultMaterials();
@@ -252,18 +267,19 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
                 materialDownloader.ApplySkinToPieces(skin.secondSkinId, Side.Black);
         }
 
+        // Save equipped skin
         currentEquippedSkinId = skin.skinId;
         SavePlayerData();
         UpdateCurrencyDisplay();
         
-        // Debug log for notification
+        // Setup notification
         Debug.Log($"About to show notification for skin: {skin.skinName}");
 
-        // Get player side info for clearer messaging
+        // Get player side for message
         string playerSideStr = "You";
         Side playerSide = Side.White; // Default
 
-        // Try to get the player's side from UIManager if available
+        // Try to get player side
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && UIManager.Instance != null)
         {
             FieldInfo fieldInfo = typeof(UIManager).GetField("localPlayerSide", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -275,28 +291,28 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             }
         }
 
-        // Show notification locally with clearer message
+        // Show local notification
         string localMessage = $"{playerSideStr} equipped the {skin.skinName} skin!";
         ShowSkinNotification(localMessage);
         
-        // Send notification to all clients if in network mode
+        // Show to other players if networked
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
         {
             Debug.Log("NetworkManager detected, sending network notification");
             
-            // Use the player side we just determined
+            // Use player side
             string sideStr = playerSide.ToString();
             Debug.Log($"Sending skin notification over network. Skin: {skin.skinName}, Side: {sideStr}");
             
             if (NetworkManager.Singleton.IsServer)
             {
-                // If server, broadcast to all clients
+                // Server broadcasts directly
                 Debug.Log("Broadcasting from server directly");
                 BoardNetworkHandler.Instance.NotifySkinEquippedClientRpc(skin.skinName, playerSide == Side.White ? 0 : 1, NetworkManager.Singleton.LocalClientId);
             }
             else
             {
-                // If client, request server to broadcast
+                // Client asks server to broadcast
                 Debug.Log("Requesting server to broadcast");
                 BoardNetworkHandler.Instance.NotifySkinEquippedServerRpc(skin.skinName, sideStr);
             }
@@ -305,7 +321,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         Debug.Log($"Equipped skin: {skin.skinName}");
     }
     
-    // Show notification locally on this client
+    // Show notification to local player
     public void ShowSkinNotification(string skinName)
     {
         Debug.Log($"DLCStoreManager.ShowSkinNotification called with: {skinName}");
@@ -322,9 +338,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             return;
         }
         
-        // Instead of trying to use SkinNotificationPanel component,
-        // we'll handle the notification directly in the DLCStoreManager
-        // which is guaranteed to be active
+        // Handle notification in DLCStoreManager
         if (notificationCoroutine != null)
         {
             StopCoroutine(notificationCoroutine);
@@ -335,31 +349,32 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         notificationCoroutine = StartCoroutine(ShowNotificationCoroutine(skinName));
     }
 
+    // Notification animation
     private IEnumerator ShowNotificationCoroutine(string skinName)
     {
         Debug.Log($"ShowNotificationCoroutine started for: {skinName}");
         
-        // Format the message to include player information
+        // Format message based on context
         string playerInfo = "";
         
-        // Check if we're in network mode
+        // Check for network mode
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
         {
-            // Determine if this is a local notification or from another player
+            // Local vs remote notification
             if (skinName.StartsWith("You equipped"))
             {
-                // This is a local notification, use as is
+                // Local notification
                 notificationText.text = skinName;
             }
             else
             {
-                // This is a remote player notification, use the passed message
+                // Remote notification
                 notificationText.text = skinName;
             }
         }
         else
         {
-            // Single player mode
+            // Single player
             notificationText.text = skinName;
         }
         
@@ -367,7 +382,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         notificationPanel.SetActive(true);
         Debug.Log($"Notification panel activated with message: {notificationText.text}");
         
-        // Wait for duration
+        // Display duration
         yield return new WaitForSeconds(notificationDuration);
         
         // Hide notification
@@ -376,6 +391,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         Debug.Log("Notification panel hidden");
     }
     
+    // Check if skin files exist
     private bool AreLocalFilesPresent(string skinName)
     {
         string[] pieceTypes = { "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" };
@@ -387,6 +403,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         return true;
     }
 
+    // Apply original materials
     private void ApplyDefaultMaterials()
     {
         Debug.Log("Applying default black and white materials");
@@ -402,6 +419,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     }
 
+    // Update coin display
     private void UpdateCurrencyDisplay()
     {
         int currentCredits = purchaseHandler.GetPlayerCredits();
@@ -412,18 +430,20 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     }
 
+    // Save player inventory
     private void SavePlayerData()
     {
-        // Save owned skins locally.
+        // Save owned skins
         string ownedSkinsList = string.Join(",", ownedSkinIds);
         PlayerPrefs.SetString("OwnedSkins", ownedSkinsList);
-        // Save credits from purchaseHandler.
+        // Save currency
         PlayerPrefs.SetInt("PlayerCredits", purchaseHandler.GetPlayerCredits());
         PlayerPrefs.SetString("EquippedSkin", currentEquippedSkinId);
         PlayerPrefs.Save();
         Debug.Log("Player data saved.");
     }
 
+    // Load player inventory
     private void LoadPlayerData()
     {
         if (PlayerPrefs.HasKey("OwnedSkins"))
@@ -447,14 +467,14 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         Debug.Log($"Player data loaded. Owned skins: {ownedSkinIds.Count}");
     }
 
-    // NEW: Button method to add 50 currency.
+    // Add free currency
     public void AddFiftyCurrency()
     {
         purchaseHandler.AddCurrency(50);
         UpdateCurrencyDisplay();
     }
     
-    // Helper method to get skin index by ID
+    // Find skin index by ID
     public int GetSkinIndex(string skinId)
     {
         for (int i = 0; i < availableSkins.Count; i++)
@@ -465,7 +485,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         return -1;
     }
     
-    // Test method to manually trigger notification
+    // Test notification system
     public void TestNotification()
     {
         Debug.Log("Testing notification");
@@ -480,10 +500,10 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
         }
     }
     
-    // Method to test both types of notifications
+    // Create test notification buttons
     public void TestPlayerNotifications()
     {
-        // Create a test button in the UI if not already present
+        // Create test button if needed
         if (GameObject.Find("TestNotificationButton") == null)
         {
             // Find canvas
@@ -494,7 +514,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
                 return;
             }
             
-            // Create button for local player notification
+            // Create local test button
             GameObject localButtonObj = new GameObject("TestLocalNotification");
             localButtonObj.transform.SetParent(canvas.transform, false);
             
@@ -507,7 +527,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             
             Button localButton = localButtonObj.AddComponent<Button>();
             
-            // Add text
+            // Add button text
             GameObject localTxtObj = new GameObject("Text");
             localTxtObj.transform.SetParent(localButtonObj.transform, false);
             
@@ -525,7 +545,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
                 ShowSkinNotification("You equipped the Test Skin!");
             });
             
-            // Create button for remote player notification
+            // Create remote test button
             GameObject remoteButtonObj = new GameObject("TestRemoteNotification");
             remoteButtonObj.transform.SetParent(canvas.transform, false);
             
@@ -538,7 +558,7 @@ public class DLCStoreManager : MonoBehaviourSingleton<DLCStoreManager>
             
             Button remoteButton = remoteButtonObj.AddComponent<Button>();
             
-            // Add text
+            // Add button text
             GameObject remoteTxtObj = new GameObject("Text");
             remoteTxtObj.transform.SetParent(remoteButtonObj.transform, false);
             

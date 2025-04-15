@@ -6,11 +6,12 @@ using System;
 
 public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalyticsManager>
 {
+    // Settings
     [Header("Analytics Configuration")]
     [SerializeField] private bool enableAnalytics = true;
     [SerializeField] private bool logDebugMessages = true;
 
-    // Initialization status
+    // Status tracking
     private bool isInitialized = false;
     
     private void Start()
@@ -18,6 +19,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         InitializeFirebase();
     }
 
+    // Setup Firebase connection
     private void InitializeFirebase()
     {
         Debug.Log("Initializing Firebase Analytics...");
@@ -26,20 +28,20 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
             var dependencyStatus = task.Result;
             if (dependencyStatus == DependencyStatus.Available)
             {
-                // Firebase is ready to use
+                // Firebase ready
                 isInitialized = true;
                 
-                // Set analytics collection enabled
+                // Configure analytics
                 FirebaseAnalytics.SetAnalyticsCollectionEnabled(enableAnalytics);
                 
-                // Set user properties
+                // Set basic user data
                 FirebaseAnalytics.SetUserId(SystemInfo.deviceUniqueIdentifier);
                 FirebaseAnalytics.SetUserProperty("device_model", SystemInfo.deviceModel);
                 FirebaseAnalytics.SetUserProperty("app_version", Application.version);
                 
                 Debug.Log("Firebase Analytics initialized successfully!");
 
-                // Log app open event
+                // Log app start
                 LogEvent("app_start");
             }
             else
@@ -49,9 +51,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         });
     }
 
-    /// <summary>
-    /// Log a custom event to Firebase Analytics
-    /// </summary>
+    // Send custom event to Firebase
     public void LogEvent(string eventName, Dictionary<string, object> parameters = null)
     {
         if (!isInitialized)
@@ -69,7 +69,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         }
         else
         {
-            // Convert dictionary to Parameter array for Firebase
+            // Convert to Firebase format
             List<Parameter> firebaseParams = new List<Parameter>();
             foreach (var param in parameters)
             {
@@ -103,9 +103,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         }
     }
 
-    /// <summary>
-    /// Log when a match starts with relevant details
-    /// </summary>
+    // Track match start
     public void LogMatchStart(bool isHosting, string matchId = null)
     {
         Dictionary<string, object> parameters = new Dictionary<string, object>
@@ -118,9 +116,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         LogEvent("match_start", parameters);
     }
 
-    /// <summary>
-    /// Log when a match ends with the result
-    /// </summary>
+    // Track match end
     public void LogMatchEnd(string matchId, string result, int moveCount, string winningSide = null)
     {
         Dictionary<string, object> parameters = new Dictionary<string, object>
@@ -140,9 +136,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         LogEvent("match_end", parameters);
     }
 
-    /// <summary>
-    /// Log when a DLC skin is purchased
-    /// </summary>
+    // Track skin purchase
     public void LogSkinPurchase(string skinId, string skinName, int price)
     {
         Dictionary<string, object> parameters = new Dictionary<string, object>
@@ -157,9 +151,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         LogEvent("skin_purchase", parameters);
     }
 
-    /// <summary>
-    /// Log when a skin is equipped
-    /// </summary>
+    // Track skin equipped
     public void LogSkinEquipped(string skinId, string skinName)
     {
         Dictionary<string, object> parameters = new Dictionary<string, object>
@@ -172,6 +164,7 @@ public class FirebaseAnalyticsManager : MonoBehaviourSingleton<FirebaseAnalytics
         LogEvent("skin_equipped", parameters);
     }
 
+    // Log app exit
     public void OnApplicationQuit()
     {
         if (isInitialized)

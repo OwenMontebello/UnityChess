@@ -13,9 +13,10 @@ public class GameAnalyticsIntegration : MonoBehaviour
 
     private void Start()
     {
+        // Get manager reference
         gameManager = GetComponent<GameManager>();
         
-        // Subscribe to game events
+        // Listen for game events
         GameManager.NewGameStartedEvent += OnNewGameStarted;
         GameManager.GameEndedEvent += OnGameEnded;
         GameManager.MoveExecutedEvent += OnMoveExecuted;
@@ -25,31 +26,33 @@ public class GameAnalyticsIntegration : MonoBehaviour
     
     private void OnDestroy()
     {
-        // Unsubscribe from events
+        // Cleanup event listeners
         GameManager.NewGameStartedEvent -= OnNewGameStarted;
         GameManager.GameEndedEvent -= OnGameEnded;
         GameManager.MoveExecutedEvent -= OnMoveExecuted;
     }
 
+    // Track game start
     private void OnNewGameStarted()
     {
-        // Generate a new match ID
+        // Generate unique match ID
         currentMatchId = Guid.NewGuid().ToString();
         moveCount = 0;
         isMatchInProgress = true;
         
-        // Determine if this client is hosting
+        // Check if hosting
         bool isHosting = false;
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
         {
             isHosting = NetworkManager.Singleton.IsServer || NetworkManager.Singleton.IsHost;
         }
         
-        // Log match start event
+        // Log match start
         FirebaseAnalyticsManager.Instance.LogMatchStart(isHosting, currentMatchId);
         Debug.Log($"[Analytics] Match started - ID: {currentMatchId}, Hosting: {isHosting}");
     }
 
+    // Track game end
     private void OnGameEnded()
     {
         if (!isMatchInProgress) return;
@@ -58,7 +61,7 @@ public class GameAnalyticsIntegration : MonoBehaviour
         string result = "unknown";
         string winningSide = null;
         
-        // Get the latest move to determine the end condition
+        // Get game result
         if (gameManager.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove))
         {
             if (latestHalfMove.CausedCheckmate)
@@ -72,17 +75,18 @@ public class GameAnalyticsIntegration : MonoBehaviour
             }
         }
         
-        // Log match end event
+        // Log match end
         FirebaseAnalyticsManager.Instance.LogMatchEnd(currentMatchId, result, moveCount, winningSide);
         Debug.Log($"[Analytics] Match ended - ID: {currentMatchId}, Result: {result}, Moves: {moveCount}");
     }
 
+    // Count moves
     private void OnMoveExecuted()
     {
         moveCount++;
     }
     
-    // Call this method to manually log a resignation
+    // Track player resignation
     public void LogResignation(Side resigningSide)
     {
         if (!isMatchInProgress) return;

@@ -5,6 +5,7 @@ using UnityChess;
 
 public class AnalyticsDashboard : MonoBehaviour
 {
+    // UI elements for displaying stats
     [Header("UI Components")]
     [SerializeField] private GameObject dashboardPanel;
     [SerializeField] private Text totalMatchesText;
@@ -14,40 +15,40 @@ public class AnalyticsDashboard : MonoBehaviour
     [SerializeField] private Button closeDashboardButton;
     [SerializeField] private Button refreshDataButton;
     
-    // Local analytics tracking
+    // Local stats tracking
     private int totalMatches = 0;
     private int totalPurchases = 0;
     private Dictionary<string, int> skinPurchaseCounts = new Dictionary<string, int>();
     private string lastMatchResult = "None";
     
-    // Firestore integration
+    // Cloud data connection
     private FirestoreManager firestoreManager;
     
     private void Start()
     {
         Debug.Log("AnalyticsDashboard: Start called");
         
-        // Set up UI button listeners
+        // Set up button listeners
         if (closeDashboardButton != null)
             closeDashboardButton.onClick.AddListener(CloseDashboard);
             
         if (refreshDataButton != null)
             refreshDataButton.onClick.AddListener(RefreshData);
             
-        // Hide dashboard panel initially
+        // Hide dashboard initially
         if (dashboardPanel != null)
             dashboardPanel.SetActive(false);
         
-        // Find or create the FirestoreManager
+        // Find or create Firestore connection
         firestoreManager = FindObjectOfType<FirestoreManager>();
         if (firestoreManager == null && FirebaseAnalyticsManager.Instance != null)
         {
-            // Only create FirestoreManager if Firebase is already initialized
+            // Only create if Firebase exists
             GameObject firestoreObj = new GameObject("FirestoreManager");
             firestoreManager = firestoreObj.AddComponent<FirestoreManager>();
         }
             
-        // Load data from PlayerPrefs (fallback)
+        // Load fallback data
         LoadStatsFromPlayerPrefs();
             
         // Subscribe to game events
@@ -56,7 +57,7 @@ public class AnalyticsDashboard : MonoBehaviour
         // Initial UI update
         UpdateUI();
         
-        // Try to load from Firestore if available
+        // Try cloud data first
         if (firestoreManager != null && firestoreManager.IsInitialized)
         {
             firestoreManager.GetGameStats(OnFirestoreDataReceived);
@@ -65,14 +66,14 @@ public class AnalyticsDashboard : MonoBehaviour
         Debug.Log("AnalyticsDashboard: Start completed successfully");
     }
     
-    // Callback for when Firestore data is received
+    // Process cloud data when received
     private void OnFirestoreDataReceived(Dictionary<string, object> data, bool success)
     {
         if (success && data != null)
         {
             Debug.Log("Successfully received Firestore data");
             
-            // Update local values from Firestore data
+            // Update local values from cloud data
             if (data.TryGetValue("totalMatches", out object matchesObj) && matchesObj is long matchesLong)
                 totalMatches = (int)matchesLong;
                 
@@ -82,7 +83,7 @@ public class AnalyticsDashboard : MonoBehaviour
             if (data.TryGetValue("lastMatchResult", out object lastMatchObj) && lastMatchObj is string lastMatchStr)
                 lastMatchResult = lastMatchStr;
             
-            // Update skin purchases
+            // Update skin purchase data
             skinPurchaseCounts.Clear();
             if (data.TryGetValue("skinPurchases", out object skinObj) && skinObj is Dictionary<string, object> skinDict)
             {
@@ -93,10 +94,10 @@ public class AnalyticsDashboard : MonoBehaviour
                 }
             }
             
-            // Update UI with the new data
+            // Refresh UI with new data
             UpdateUI();
             
-            // Save to PlayerPrefs as backup
+            // Save as backup
             SaveStatsToPlayerPrefs();
         }
         else
@@ -105,6 +106,7 @@ public class AnalyticsDashboard : MonoBehaviour
         }
     }
     
+    // Safely connect to game events
     private void SafeSubscribeToEvents()
     {
         try
@@ -119,6 +121,7 @@ public class AnalyticsDashboard : MonoBehaviour
         }
     }
     
+    // Clean up event connections
     private void OnDestroy()
     {
         try
@@ -132,6 +135,7 @@ public class AnalyticsDashboard : MonoBehaviour
         }
     }
     
+    // Track when a match begins
     private void OnMatchStarted()
     {
         totalMatches++;
@@ -139,6 +143,7 @@ public class AnalyticsDashboard : MonoBehaviour
         UpdateUI();
     }
     
+    // Track match results
     private void OnMatchEnded()
     {
         try
@@ -166,6 +171,7 @@ public class AnalyticsDashboard : MonoBehaviour
         UpdateUI();
     }
     
+// Track skin purchases
 public void OnSkinPurchased(string skinName)
 {
     totalPurchases++;
@@ -180,6 +186,7 @@ public void OnSkinPurchased(string skinName)
     UpdateUI();
 }
     
+    // Show the analytics panel
     public void OpenDashboard()
     {
         RefreshData();
@@ -187,15 +194,17 @@ public void OnSkinPurchased(string skinName)
             dashboardPanel.SetActive(true);
     }
     
+    // Hide the analytics panel
     public void CloseDashboard()
     {
         if (dashboardPanel != null)
             dashboardPanel.SetActive(false);
     }
     
+    // Get latest data
     private void RefreshData()
     {
-        // Try to get fresh data from Firestore
+        // Try cloud data first
         if (firestoreManager != null && firestoreManager.IsInitialized)
         {
             firestoreManager.GetGameStats(OnFirestoreDataReceived);
@@ -208,12 +217,13 @@ public void OnSkinPurchased(string skinName)
         }
     }
     
-    private void SaveStats()
+    // Save data locally and to cloud
+private void SaveStats()
 {
     // Always save locally first
     SaveStatsToPlayerPrefs();
     
-    // Then try to save to Firestore
+    // Then try to save to cloud
     if (firestoreManager != null && firestoreManager.IsInitialized)
     {
         Dictionary<string, object> data = new Dictionary<string, object>
@@ -234,13 +244,14 @@ public void OnSkinPurchased(string skinName)
     }
 }
     
+    // Save data locally
     private void SaveStatsToPlayerPrefs()
     {
         PlayerPrefs.SetInt("TotalMatches", totalMatches);
         PlayerPrefs.SetInt("TotalPurchases", totalPurchases);
         PlayerPrefs.SetString("LastMatchResult", lastMatchResult);
         
-        // Save skin purchases
+        // Save skin purchases data
         string skinData = "";
         foreach (var pair in skinPurchaseCounts)
         {
@@ -251,6 +262,7 @@ public void OnSkinPurchased(string skinName)
         PlayerPrefs.Save();
     }
     
+    // Load data from local storage
     private void LoadStatsFromPlayerPrefs()
     {
         totalMatches = PlayerPrefs.GetInt("TotalMatches", 0);
@@ -280,6 +292,7 @@ public void OnSkinPurchased(string skinName)
         }
     }
     
+    // Refresh UI with current data
     private void UpdateUI()
     {
         try

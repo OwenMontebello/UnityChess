@@ -5,13 +5,16 @@ using System.Collections;
 
 public class NetworkPingManager : NetworkBehaviour
 {
+    // UI references
     [SerializeField] private TextMeshProUGUI pingText;
     [SerializeField] private float pingInterval = 1.0f;
     
+    // Ping tracking
     private ulong clientId;
     private float lastPingTime;
     private float currentPing;
     
+    // Server time sync
     private NetworkVariable<long> serverTimestamp = new NetworkVariable<long>();
 
     public override void OnNetworkSpawn()
@@ -26,16 +29,17 @@ public class NetworkPingManager : NetworkBehaviour
         }
     }
     
+    // Regular ping measurement
     private IEnumerator PingCoroutine()
     {
         Debug.Log("Starting ping coroutine");
         
-        // Wait a moment to ensure everything is initialized
+        // Short delay for initialization
         yield return new WaitForSeconds(0.5f);
         
         while (IsClient && NetworkManager.Singleton.IsConnectedClient)
         {
-            // Record the time and send ping request
+            // Send ping to server
             lastPingTime = Time.realtimeSinceStartup;
             PingServerRpc();
             
@@ -43,13 +47,14 @@ public class NetworkPingManager : NetworkBehaviour
         }
     }
     
+    // Ask server for ping response
     [ServerRpc(RequireOwnership = false)]
     private void PingServerRpc(ServerRpcParams serverRpcParams = default)
     {
-        // Get client ID who sent the request
+        // Get sender ID
         ulong senderId = serverRpcParams.Receive.SenderClientId;
         
-        // Send response back only to that client
+        // Target only the sender
         ClientRpcParams clientRpcParams = new ClientRpcParams
         {
             Send = new ClientRpcSendParams
@@ -58,10 +63,11 @@ public class NetworkPingManager : NetworkBehaviour
             }
         };
         
-        // Send ping response
+        // Reply to ping
         PingResponseClientRpc(clientRpcParams);
     }
     
+    // Server response to ping
     [ClientRpc]
     private void PingResponseClientRpc(ClientRpcParams clientRpcParams = default)
     {
@@ -77,7 +83,7 @@ public class NetworkPingManager : NetworkBehaviour
         }
     }
     
-    // Call this manually from UI buttons to test ping if needed
+    // Manual ping test
     public void TriggerManualPing()
     {
         if (IsClient && NetworkManager.Singleton.IsConnectedClient)

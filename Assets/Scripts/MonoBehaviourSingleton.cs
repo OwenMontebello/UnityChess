@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 
+// Generic singleton pattern for MonoBehaviour classes
 public class MonoBehaviourSingleton<T> : MonoBehaviour where T : MonoBehaviourSingleton<T> {
 	public static T Instance {
 		get {

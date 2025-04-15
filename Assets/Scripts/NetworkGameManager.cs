@@ -7,7 +7,7 @@ public class NetworkGameManager : MonoBehaviour
 
     private void Awake()
     {
-        // Ensure only one instance of NetworkGameManager exists
+        // Ensure single instance
         if (instance == null)
         {
             instance = this;
@@ -19,6 +19,7 @@ public class NetworkGameManager : MonoBehaviour
         }
     }
 
+    // Create host server
     public void StartHost()
     {
         if (NetworkManager.Singleton != null && !NetworkManager.Singleton.IsServer && !NetworkManager.Singleton.IsClient)
@@ -34,6 +35,7 @@ public class NetworkGameManager : MonoBehaviour
         }
     }
 
+    // Connect to host
     public void StartClient()
     {
         if (NetworkManager.Singleton != null && !NetworkManager.Singleton.IsServer && !NetworkManager.Singleton.IsClient)

@@ -13,8 +13,10 @@ public class FirestoreManager : MonoBehaviour
 {
     public bool IsInitialized { get; private set; }
     
+    // Debug options
     [SerializeField] private bool showDebugUI = true;
     
+    // Callback for async operations
     public delegate void FirestoreCallback(Dictionary<string, object> data, bool success);
     
 #if ENABLE_FIREBASE
@@ -24,10 +26,12 @@ public class FirestoreManager : MonoBehaviour
     
     private void Awake()
     {
+        // Keep between scenes
         DontDestroyOnLoad(gameObject);
         StartCoroutine(InitializeFirestore());
     }
     
+    // Show debug controls in game
     private void OnGUI()
     {
         if (!showDebugUI) return;
@@ -76,6 +80,7 @@ public class FirestoreManager : MonoBehaviour
         GUILayout.EndArea();
     }
     
+    // Connect to Firestore
     private IEnumerator InitializeFirestore()
     {
         IsInitialized = false;
@@ -85,7 +90,7 @@ public class FirestoreManager : MonoBehaviour
         
         yield return new WaitForSeconds(1f);
         
-        // Check Firebase App
+        // Check Firebase availability
         if (FirebaseApp.DefaultInstance == null)
         {
             Debug.Log("Firebase App not initialized. Attempting to initialize...");
@@ -118,7 +123,7 @@ public class FirestoreManager : MonoBehaviour
                     IsInitialized = true;
                     Debug.Log("Firestore fully initialized!");
                     
-                    // Create initial document if it doesn't exist
+                    // Create document if missing
                     EnsureDocumentExists();
                 }
                 else
@@ -142,6 +147,7 @@ public class FirestoreManager : MonoBehaviour
     }
     
 #if ENABLE_FIREBASE
+    // Create initial document if needed
     private void EnsureDocumentExists()
     {
         statsRef.GetSnapshotAsync().ContinueWithOnMainThread(task => {
@@ -183,6 +189,7 @@ public class FirestoreManager : MonoBehaviour
     }
 #endif
     
+    // Load game stats from cloud
     public void GetGameStats(FirestoreCallback callback)
     {
 #if ENABLE_FIREBASE
@@ -231,6 +238,7 @@ public class FirestoreManager : MonoBehaviour
 #endif
     }
     
+    // Save game stats to cloud
     public void SaveGameStats(Dictionary<string, object> data)
     {
 #if ENABLE_FIREBASE

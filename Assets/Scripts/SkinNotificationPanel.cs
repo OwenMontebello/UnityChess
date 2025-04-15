@@ -4,39 +4,43 @@ using System.Collections;
 
 public class SkinNotificationPanel : MonoBehaviour
 {
+    // UI elements
     [SerializeField] private Text notificationText;
     [SerializeField] private Image backgroundPanel;
+    
+    // Animation timing
     [SerializeField] private float fadeInTime = 0.5f;
     [SerializeField] private float displayTime = 3.0f;
     [SerializeField] private float fadeOutTime = 0.5f;
     
+    // Animation reference
     private Coroutine animationCoroutine;
     
     private void Awake()
     {
-        // Initially hide the panel
+        // Hide by default
         gameObject.SetActive(false);
         
-        // Log component references for debugging
+        // Log component status
         Debug.Log($"SkinNotificationPanel Awake - notificationText: {(notificationText != null ? "Set" : "NULL")}");
         Debug.Log($"SkinNotificationPanel Awake - backgroundPanel: {(backgroundPanel != null ? "Set" : "NULL")}");
     }
     
+    // Show a notification message
     public void ShowNotification(string message)
     {
         Debug.Log($"SkinNotificationPanel.ShowNotification called with message: {message}");
         
-        // Note: This method won't be used by the DLCStoreManager anymore,
-        // but we'll keep it in case you want to call it directly in other contexts
+        // Note: DLCStoreManager handles notifications now
         
-        // Ensure the GameObject is active before starting the coroutine
+        // Ensure panel is active
         if (!gameObject.activeInHierarchy)
         {
             Debug.LogWarning("Attempting to show notification on inactive panel. Activating it first.");
             gameObject.SetActive(true);
         }
         
-        // Set the notification text
+        // Set message text
         if (notificationText != null)
         {
             notificationText.text = message;
@@ -48,18 +52,19 @@ public class SkinNotificationPanel : MonoBehaviour
             return;
         }
             
-        // Stop any existing animation
+        // Cancel existing animation
         if (animationCoroutine != null)
         {
             StopCoroutine(animationCoroutine);
             Debug.Log("Stopped existing notification coroutine");
         }
             
-        // Start the animation - this now runs on an active GameObject
+        // Start animation
         animationCoroutine = StartCoroutine(AnimateNotification());
         Debug.Log("Started notification animation coroutine");
     }
     
+    // Fade in/out animation
     private IEnumerator AnimateNotification()
     {
         Debug.Log("AnimateNotification coroutine started");
@@ -67,7 +72,7 @@ public class SkinNotificationPanel : MonoBehaviour
         // Force layout update
         Canvas.ForceUpdateCanvases();
         
-        // Check if components exist before proceeding
+        // Check components
         if (notificationText == null || backgroundPanel == null)
         {
             Debug.LogError("Missing UI components. Text: " + (notificationText != null) + ", Panel: " + (backgroundPanel != null));
@@ -77,7 +82,7 @@ public class SkinNotificationPanel : MonoBehaviour
         Color textColor = notificationText.color;
         Color bgColor = backgroundPanel.color;
         
-        // Set initial alpha to 0
+        // Start transparent
         textColor.a = 0f;
         bgColor.a = 0f;
         notificationText.color = textColor;
@@ -91,7 +96,7 @@ public class SkinNotificationPanel : MonoBehaviour
         {
             float t = (Time.time - startTime) / fadeInTime;
             textColor.a = t;
-            bgColor.a = t * 0.8f; // Making background slightly transparent
+            bgColor.a = t * 0.8f; // Semi-transparent background
             
             notificationText.color = textColor;
             backgroundPanel.color = bgColor;
@@ -107,7 +112,7 @@ public class SkinNotificationPanel : MonoBehaviour
         notificationText.color = textColor;
         backgroundPanel.color = bgColor;
         
-        // Display for set time
+        // Hold for display time
         Debug.Log($"Displaying notification for {displayTime} seconds");
         yield return new WaitForSeconds(displayTime);
         
@@ -127,7 +132,7 @@ public class SkinNotificationPanel : MonoBehaviour
             yield return null;
         }
         
-        // Hide panel
+        // Hide when done
         gameObject.SetActive(false);
         animationCoroutine = null;
         Debug.Log("Notification panel hidden");

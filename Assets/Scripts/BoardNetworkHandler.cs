@@ -10,17 +10,17 @@ public class BoardNetworkHandler : NetworkBehaviour
     public static BoardNetworkHandler Instance;
     private BoardManager boardManager;
     
-    // Track current turn with a NetworkVariable
+    // Track whose turn it is
     private NetworkVariable<int> currentTurn = new NetworkVariable<int>((int)Side.White, 
         NetworkVariableReadPermission.Everyone, 
         NetworkVariableWritePermission.Server);
     
-    // Dictionary to track which player is playing as which side
+    // Track player assignments (white/black)
     private Dictionary<ulong, Side> playerSides = new Dictionary<ulong, Side>();
 
     private void Awake()
     {
-        // Set up a singleton reference.
+        // Setup singleton
         Instance = this;
         boardManager = GetComponent<BoardManager>();
         if (boardManager == null)
@@ -35,10 +35,10 @@ public class BoardNetworkHandler : NetworkBehaviour
         
         if (IsServer)
         {
-            // If we're the server, initialize the game
+            // Server initializes the game
             InitializeGame();
             
-            // Register for client connection events
+            // Listen for player connections
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         }
@@ -53,38 +53,40 @@ public class BoardNetworkHandler : NetworkBehaviour
         }
     }
     
+    // Setup initial game state
     private void InitializeGame()
     {
         if (!IsServer) return;
         
-        // Reset the game to starting position
+        // Start a new game
         GameManager.Instance.StartNewGame();
         
-        // Assign the host as white initially
+        // Host is white
         AssignPlayerSide(NetworkManager.Singleton.LocalClientId);
         
-        // Set initial turn to white
+        // White goes first
         currentTurn.Value = (int)Side.White;
     }
     
+    // Handle new player connection
     private void OnClientConnected(ulong clientId)
     {
         if (!IsServer) return;
         
         Debug.Log($"Client {clientId} connected to server");
         
-        // Assign a side to the newly connected client
+        // Assign a side to the new player
         AssignPlayerSide(clientId);
         
-        // If game is in progress (has moves), send the current state to the client
+        // Send current game state if in progress
         if (GameManager.Instance.HalfMoveTimeline.Count > 0)
         {
             Debug.Log($"Game in progress. Syncing state to client {clientId}");
             
-            // Get the current game state as a FEN string
+            // Get current game state
             string gameState = GameManager.Instance.SerializeGame();
             
-            // Create client RPC params to target only this client
+            // Target just this client
             ClientRpcParams clientRpcParams = new ClientRpcParams
             {
                 Send = new ClientRpcSendParams
@@ -93,11 +95,12 @@ public class BoardNetworkHandler : NetworkBehaviour
                 }
             };
             
-            // Send the current game state to this client only
+            // Send the game state
             SendCurrentGameStateClientRpc(gameState, clientRpcParams);
         }
     }
     
+    // Handle player disconnect
     private void OnClientDisconnected(ulong clientId)
     {
         if (!IsServer) return;
@@ -107,42 +110,43 @@ public class BoardNetworkHandler : NetworkBehaviour
             Side disconnectedSide = playerSides[clientId];
             Debug.Log($"Client {clientId} ({disconnectedSide}) disconnected");
             
-            // Don't remove from playerSides to preserve assignment for reconnection
-            // Instead, mark as disconnected but maintain the side assignment
+            // Keep side assignment for reconnection
             Debug.Log($"Preserving player side assignment for reconnection");
         }
     }
     
+    // Assign player to white or black
     public void AssignPlayerSide(ulong clientId)
     {
         if (!IsServer) return;
         
-        // Very important: Clear existing assignment logic and explicitly make host White and client Black
+        // Host is always White, client is Black
         if (clientId == NetworkManager.Singleton.LocalClientId)
         {
-            // Host is always White
+            // Host is White
             playerSides[clientId] = Side.White;
             Debug.Log($"Host (client {clientId}) assigned as White");
         }
         else
         {
-            // Any other client is Black
+            // Client is Black
             playerSides[clientId] = Side.Black;
             Debug.Log($"Client {clientId} assigned as Black");
         }
         
-        // Notify all clients about player assignments
+        // Tell all clients about assignments
         UpdatePlayerAssignmentsClientRpc(
             playerSides.Keys.ToArray(), 
             playerSides.Values.Select(s => (int)s).ToArray());
     }
 
+    // Send current board state to client
     [ClientRpc]
     private void SendCurrentGameStateClientRpc(string gameState, ClientRpcParams clientRpcParams = default)
     {
         Debug.Log($"Received game state from server: {gameState}");
         
-        // Load the game state (this uses the FEN string)
+        // Load the game state
         GameManager.Instance.LoadGame(gameState);
         
         // Update turn indicator
@@ -152,17 +156,14 @@ public class BoardNetworkHandler : NetworkBehaviour
         Debug.Log("Game state successfully synchronized");
     }
 
-    /// <summary>
-    /// Called by a client when a piece is moved.
-    /// Runs on the server (host) when invoked by a client.
-    /// </summary>
+    // Process move request from client
     [ServerRpc(RequireOwnership = false)]
     public void RequestMoveServerRpc(int fromFile, int fromRank, int toFile, int toRank, ServerRpcParams rpcParams = default)
     {
-        // Get the client ID of the player making the request
+        // Get requesting player's ID
         ulong clientId = rpcParams.Receive.SenderClientId;
         
-        // Verify it's this player's turn
+        // Verify it's their turn
         if (!playerSides.TryGetValue(clientId, out Side playerSide) || playerSide != (Side)currentTurn.Value)
         {
             Debug.LogWarning($"Client {clientId} attempted to move out of turn");
@@ -172,7 +173,7 @@ public class BoardNetworkHandler : NetworkBehaviour
         Square fromSquare = new Square(fromFile, fromRank);
         Square toSquare = new Square(toFile, toRank);
 
-        // Use the public wrapper from GameManager to get the legal move
+        // Check if move is legal
         if (!GameManager.Instance.TryGetLegalMove(fromSquare, toSquare, out Movement move))
         {
             Debug.LogWarning("Invalid move requested: " + fromSquare + " to " + toSquare);
@@ -181,13 +182,13 @@ public class BoardNetworkHandler : NetworkBehaviour
         
         Debug.Log($"Server executing move from {fromSquare} to {toSquare}");
         
-        // Execute the move on the server
+        // Execute the move on server
         if (GameManager.Instance.TryExecuteMove(move))
         {
-            // First destroy any piece at destination
+            // Remove captured piece if any
             BoardManager.Instance.TryDestroyVisualPiece(toSquare);
             
-            // Then move the piece visually
+            // Move the piece visually
             GameObject pieceGO = BoardManager.Instance.GetPieceGOAtPosition(fromSquare);
             if (pieceGO != null)
             {
@@ -198,29 +199,27 @@ public class BoardNetworkHandler : NetworkBehaviour
                 Debug.Log($"Server moved piece from {fromSquare} to {toSquare}");
             }
             
-            // Broadcast the move to all clients
+            // Tell all clients about the move
             UpdateBoardClientRpc(fromFile, fromRank, toFile, toRank);
             
-            // Check for game end conditions
+            // Check for game end
             GameManager.Instance.HalfMoveTimeline.TryGetCurrent(out HalfMove latestHalfMove);
             if (latestHalfMove.CausedCheckmate || latestHalfMove.CausedStalemate)
             {
-                // Game ended, notify clients
+                // Game ended
                 GameEndedClientRpc(latestHalfMove.CausedCheckmate, playerSide == Side.White ? 1 : 0);
             }
             else
             {
-                // Switch turns after a successful move
+                // Switch turns
                 currentTurn.Value = currentTurn.Value == (int)Side.White ? (int)Side.Black : (int)Side.White;
-                // Notify clients about turn change
+                // Tell clients about turn change
                 NotifyTurnChangeClientRpc(currentTurn.Value);
             }
         }
     }
 
-    /// <summary>
-    /// Called on all clients to update board visuals.
-    /// </summary>
+    // Update all clients about a move
     [ClientRpc]
     private void UpdateBoardClientRpc(int fromFile, int fromRank, int toFile, int toRank)
     {
@@ -229,7 +228,7 @@ public class BoardNetworkHandler : NetworkBehaviour
         
         Debug.Log($"[ClientRPC] Received move from {fromSquare} to {toSquare} on {(NetworkManager.Singleton.IsHost ? "HOST" : "CLIENT")}");
         
-        // Skip move processing for the server that already executed it
+        // Server already did this
         if (NetworkManager.Singleton.IsServer)
         {
             Debug.Log("Server already processed this move, skipping duplicate execution");
@@ -237,14 +236,14 @@ public class BoardNetworkHandler : NetworkBehaviour
         }
         
         // For clients: 
-        // 1. First make sure any piece at destination is destroyed
+        // Remove any piece at destination
         BoardManager.Instance.TryDestroyVisualPiece(toSquare);
         
-        // 2. Then move the piece from source to destination
+        // Move the piece
         GameObject pieceGO = BoardManager.Instance.GetPieceGOAtPosition(fromSquare);
         if (pieceGO != null)
         {
-            // Get the destination square transform
+            // Get destination square
             GameObject destSquareGO = BoardManager.Instance.GetSquareGOByPosition(toSquare);
             
             // Move the piece
@@ -259,6 +258,7 @@ public class BoardNetworkHandler : NetworkBehaviour
         }
     }
     
+    // Tell clients whose turn it is
     [ClientRpc]
     private void NotifyTurnChangeClientRpc(int sideToMove)
     {
@@ -269,17 +269,18 @@ public class BoardNetworkHandler : NetworkBehaviour
         UIManager.Instance.UpdateTurnIndicator(currentSide);
     }
     
+    // Tell clients who is playing which side
     [ClientRpc]
     private void UpdatePlayerAssignmentsClientRpc(ulong[] clientIds, int[] sides)
     {
-        // Update local player assignments
+        // Update local records
         for (int i = 0; i < clientIds.Length; i++)
         {
             Debug.Log($"Client {clientIds[i]} is playing as {(Side)sides[i]}");
-            // Optional: Update UI to show player roles
+            // Could update UI here
         }
         
-        // Determine local player's side
+        // Find local player's side
         ulong localClientId = NetworkManager.Singleton.LocalClientId;
         for (int i = 0; i < clientIds.Length; i++)
         {
@@ -291,6 +292,7 @@ public class BoardNetworkHandler : NetworkBehaviour
         }
     }
     
+    // Tell clients the game is over
     [ClientRpc]
     private void GameEndedClientRpc(bool isCheckmate, int winningSideValue)
     {
@@ -304,17 +306,18 @@ public class BoardNetworkHandler : NetworkBehaviour
             UIManager.Instance.DisplayGameOverMessage("Game ended in a draw (stalemate)");
         }
         
-        // Disable all pieces to prevent further moves
+        // Disable pieces to prevent more moves
         BoardManager.Instance.SetActiveAllPieces(false);
         
-        // Show restart button
+        // Show restart option
         UIManager.Instance.ShowRestartButton(true);
     }
 
+    // Handle player resigning
     [ServerRpc(RequireOwnership = false)]
     public void ResignGameServerRpc(ServerRpcParams rpcParams = default)
     {
-        // Get the client ID of the player resigning
+        // Get player ID
         ulong clientId = rpcParams.Receive.SenderClientId;
         
         if (!playerSides.TryGetValue(clientId, out Side resigningSide))
@@ -325,38 +328,39 @@ public class BoardNetworkHandler : NetworkBehaviour
         
         Debug.Log($"Player {clientId} ({resigningSide}) is resigning");
         
-        // The winner is the opposite side of the resigning player
+        // Other player wins
         Side winningSide = resigningSide == Side.White ? Side.Black : Side.White;
         
-        // Notify all clients of the resignation
+        // Tell clients about resignation
         GameResignedClientRpc((int)resigningSide, (int)winningSide);
     }
 
+    // Tell clients about resignation
     [ClientRpc]
     private void GameResignedClientRpc(int resigningSideValue, int winningSideValue)
     {
         Side resigningSide = (Side)resigningSideValue;
         Side winningSide = (Side)winningSideValue;
         
-        // Display resignation message
+        // Show message
         UIManager.Instance.DisplayGameOverMessage($"{resigningSide} resigned. {winningSide} wins!");
         
-        // Disable all pieces to prevent further moves
+        // Disable pieces
         BoardManager.Instance.SetActiveAllPieces(false);
         
-        // Show restart button
+        // Show restart option
         UIManager.Instance.ShowRestartButton(true);
     }
 
+    // Handle restart request
     [ServerRpc(RequireOwnership = false)]
     public void RequestRestartServerRpc(ServerRpcParams rpcParams = default)
     {
-        // This method allows clients to request a restart
-        // The server could implement logic here to confirm with all players
-        // For simplicity, we'll just automatically restart
+        // Could add confirmation logic here
         RestartGameServerRpc();
     }
 
+    // Actually restart the game
     [ServerRpc]
     public void RestartGameServerRpc()
     {
@@ -364,39 +368,40 @@ public class BoardNetworkHandler : NetworkBehaviour
         
         Debug.Log("Restarting game for all clients");
         
-        // Reset the game state
+        // Reset game
         GameManager.Instance.StartNewGame();
         
-        // Reset the turn to White
+        // White goes first
         currentTurn.Value = (int)Side.White;
         
-        // Notify all clients to restart
+        // Tell clients to restart
         RestartGameClientRpc();
     }
 
+    // Tell clients to restart
     [ClientRpc]
     private void RestartGameClientRpc()
     {
         Debug.Log("Received game restart command");
         
-        // Reset the game
+        // Reset game
         GameManager.Instance.StartNewGame();
         
-        // Update UI
-        UIManager.Instance.DisplayGameOverMessage(""); // Clear any game over message
+        // Reset UI
+        UIManager.Instance.DisplayGameOverMessage(""); // Clear message
         UIManager.Instance.ShowRestartButton(false);
         UIManager.Instance.UpdateTurnIndicator(Side.White);
         
-        // Re-enable pieces for the side whose turn it is
+        // Enable appropriate pieces
         if (NetworkManager.Singleton.IsHost)
         {
-            // Host is White, so enable White pieces
+            // Host is White
             BoardManager.Instance.EnsureOnlyPiecesOfSideAreEnabled(Side.White);
         }
         else
         {
-            // Client is Black, so check if it's their turn
-            Side localPlayerSide = Side.Black; // Assuming client is always Black
+            // Client is Black, check if it's their turn
+            Side localPlayerSide = Side.Black; // Assume client is Black
             if (localPlayerSide == (Side)currentTurn.Value)
             {
                 BoardManager.Instance.EnsureOnlyPiecesOfSideAreEnabled(localPlayerSide);
@@ -404,34 +409,33 @@ public class BoardNetworkHandler : NetworkBehaviour
         }
     }
     
-    /// <summary>
-    /// Broadcasts a skin equipped notification to all clients
-    /// </summary>
+    // Tell other players about skin change
     [ServerRpc(RequireOwnership = false)]
     public void NotifySkinEquippedServerRpc(string skinName, string playerSide, ServerRpcParams rpcParams = default)
     {
-        // Get the client ID of the player who equipped the skin
+        // Get player ID
         ulong clientId = rpcParams.Receive.SenderClientId;
         
-        // Get the player's side if available
-        Side playerSideEnum = Side.White; // Default to White
+        // Parse side
+        Side playerSideEnum = Side.White; // Default
         if (playerSide == "Black")
             playerSideEnum = Side.Black;
         
-        // Send notification to all clients
+        // Tell all clients
         NotifySkinEquippedClientRpc(skinName, playerSideEnum == Side.White ? 0 : 1, clientId);
     }
 
+    // Show skin notification
     [ClientRpc]
     public void NotifySkinEquippedClientRpc(string skinName, int playerSideValue, ulong clientId)
     {
         Side playerSide = (Side)playerSideValue;
         
-        // Skip showing notification for the player who equipped the skin
+        // Don't show to player who equipped it
         if (clientId == NetworkManager.Singleton.LocalClientId)
             return;
         
-        // Get the DLC Store Manager
+        // Show notification
         DLCStoreManager dlcManager = DLCStoreManager.Instance;
         if (dlcManager != null)
         {

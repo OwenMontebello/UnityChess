@@ -8,21 +8,21 @@ using Firebase.Extensions;
 
 public class DynamicSkinLoader : MonoBehaviour
 {
-    // Firebase Storage reference
+    // Firebase connection
     private FirebaseStorage storage;
 
-    // Path to store downloaded skins
+    // Local storage path
     private string skinDownloadPath;
 
-    // Firebase Storage bucket URL
+    // Firebase bucket URL
     private const string FIREBASE_STORAGE_BUCKET = "gs://chess-f8d15.firebasestorage.app";
 
     private void Awake()
     {
-        // Initialize download path
+        // Set download folder
         skinDownloadPath = Path.Combine(Application.persistentDataPath, "DownloadedSkins");
         
-        // Create directory if it doesn't exist
+        // Create folder if needed
         if (!Directory.Exists(skinDownloadPath))
         {
             Directory.CreateDirectory(skinDownloadPath);
@@ -32,7 +32,7 @@ public class DynamicSkinLoader : MonoBehaviour
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task => {
             if (task.Result == DependencyStatus.Available)
             {
-                // Initialize Firebase Storage
+                // Connect to storage
                 storage = FirebaseStorage.GetInstance(FIREBASE_STORAGE_BUCKET);
                 Debug.Log("Firebase Storage initialized successfully");
             }
@@ -43,11 +43,7 @@ public class DynamicSkinLoader : MonoBehaviour
         });
     }
 
-    /// <summary>
-    /// Download a specific skin material from Firebase Storage
-    /// </summary>
-    /// <param name="skinName">Name of the skin (Blue, Gold, Red)</param>
-    /// <param name="pieceType">Type of piece (Pawn, Rook, Knight, etc.)</param>
+    // Download a skin for a piece
     public void DownloadSkinMaterial(string skinName, string pieceType)
     {
         if (storage == null)
@@ -56,14 +52,14 @@ public class DynamicSkinLoader : MonoBehaviour
             return;
         }
 
-        // Construct the file path in Firebase Storage
+        // Firebase path
         string storagePath = $"{skinName} {pieceType}.mat";
         StorageReference skinRef = storage.GetReference(storagePath);
 
-        // Local path where the material will be saved
+        // Local path
         string localPath = Path.Combine(skinDownloadPath, $"{skinName}_{pieceType}.mat");
 
-        // Download the file
+        // Start download
         skinRef.GetFileAsync(localPath).ContinueWithOnMainThread(task => 
         {
             if (task.IsFaulted)
@@ -82,22 +78,17 @@ public class DynamicSkinLoader : MonoBehaviour
         });
     }
 
-    /// <summary>
-    /// Load a previously downloaded skin material
-    /// </summary>
-    /// <param name="skinName">Name of the skin (Blue, Gold, Red)</param>
-    /// <param name="pieceType">Type of piece (Pawn, Rook, Knight, etc.)</param>
-    /// <returns>Loaded Material or null if not found</returns>
+    // Load a downloaded skin material
     public Material LoadDownloadedSkinMaterial(string skinName, string pieceType)
     {
         string localPath = Path.Combine(skinDownloadPath, $"{skinName}_{pieceType}.mat");
 
         if (File.Exists(localPath))
         {
-            // Load the material from the file
+            // Create material
             Material loadedMaterial = new Material(Shader.Find("Standard")); // Default shader
             
-            // Load texture if applicable
+            // Add texture
             Texture2D texture = LoadTextureFromFile(localPath);
             if (texture != null)
             {
@@ -111,9 +102,7 @@ public class DynamicSkinLoader : MonoBehaviour
         return null;
     }
 
-    /// <summary>
-    /// Load texture from a file path
-    /// </summary>
+    // Load image from file
     private Texture2D LoadTextureFromFile(string filePath)
     {
         byte[] fileData = File.ReadAllBytes(filePath);
@@ -122,19 +111,14 @@ public class DynamicSkinLoader : MonoBehaviour
         return texture;
     }
 
-    /// <summary>
-    /// Check if a specific skin material is downloaded
-    /// </summary>
+    // Check if skin exists locally
     public bool IsSkinMaterialDownloaded(string skinName, string pieceType)
     {
         string localPath = Path.Combine(skinDownloadPath, $"{skinName}_{pieceType}.mat");
         return File.Exists(localPath);
     }
 
-    /// <summary>
-    /// Download all materials for a specific skin
-    /// </summary>
-    /// <param name="skinName">Name of the skin (Blue, Gold, Red)</param>
+    // Download all materials for a skin
     public void DownloadFullSkin(string skinName)
     {
         string[] pieceTypes = new string[] 
@@ -148,12 +132,10 @@ public class DynamicSkinLoader : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Apply downloaded skin materials to pieces
-    /// </summary>
+    // Apply skins to all pieces
     public void ApplyDownloadedSkin(string skinName)
     {
-        // Find all pieces on the board
+        // Find all pieces
         VisualPiece[] pieces = FindObjectsOfType<VisualPiece>();
         
         foreach (VisualPiece piece in pieces)
@@ -161,10 +143,10 @@ public class DynamicSkinLoader : MonoBehaviour
             Renderer renderer = piece.GetComponent<Renderer>();
             if (renderer == null) continue;
 
-            // Determine piece type and color
+            // Get piece type
             string pieceType = GetPieceType(piece);
             
-            // Load the downloaded material
+            // Load material
             Material downloadedMaterial = LoadDownloadedSkinMaterial(skinName, pieceType);
             
             if (downloadedMaterial != null)
@@ -175,6 +157,7 @@ public class DynamicSkinLoader : MonoBehaviour
         }
     }
 
+    // Identify piece type
     private string GetPieceType(VisualPiece piece)
     {
         string pieceName = piece.name.ToLower();
